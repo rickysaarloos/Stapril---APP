@@ -3,8 +3,9 @@ import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/layout/ProtectedRoute'
 import Register from './pages/Register'
 import Login from './pages/Login'
+import Dashboard from './pages/Dashboard'
  
-const Dashboard  = () => <div style={{ color: '#fff', padding: '2rem' }}>Dashboard (komt nog)</div>
+
 const AdminPanel = () => <div style={{ color: '#fff', padding: '2rem' }}>Admin (komt nog)</div>
  
 export default function App() {
