@@ -5,6 +5,7 @@ import Register from './pages/Register'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import AdminPanel from './pages/AdminPanel'
+import Team from './pages/Team'
  
 export default function App() {
   return (
@@ -16,6 +17,9 @@ export default function App() {
           <Route path="/dashboard" element={
             <ProtectedRoute><Dashboard /></ProtectedRoute>
           } />
+          <Route path="/team" element={
+            <ProtectedRoute><Team /></ProtectedRoute>
+          } />
           <Route path="/admin" element={
             <ProtectedRoute adminOnly><AdminPanel /></ProtectedRoute>
           } />
@@ -25,5 +29,3 @@ export default function App() {
     </BrowserRouter>
   )
 }
-
- 
