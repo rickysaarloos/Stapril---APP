@@ -130,6 +130,14 @@ export default function Dashboard() {
           <h1 className="text-4xl sm:text-5xl font-black tracking-tight leading-tight">
             {user?.naam || 'Deelnemer'}
           </h1>
+
+              <button
+      onClick={() => navigate('/profiel')}
+      className="w-18 h-10 rounded-xl bg-[#84cc16]/10 border border-[#84cc16]/25 flex items-center justify-center text-[#84cc16] text-xs font-black hover:bg-[#84cc16]/20 transition-colors "
+      title="Profiel"
+    > profiel
+      
+    </button>
           <p className="text-white/30 text-sm mt-2">
             Rol: <span className="text-white/50 capitalize">{user?.role || 'deelnemer'}</span>
             {user?.teamId
@@ -150,6 +158,7 @@ export default function Dashboard() {
     >
       Admin
     </button>
+    
   )}
 </div>
  
