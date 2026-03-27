@@ -2,28 +2,58 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuthContext } from '../context/AuthContext'
 
-export default function Login() {
-  const { login } = useAuthContext()
+const validate = {
+  email(v) {
+    if (!v.trim()) return 'Vul je e-mailadres in'
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return 'Ongeldig e-mailadres'
+    return null
+  },
+  password(v) {
+    if (!v) return 'Vul je wachtwoord in'
+    return null
+  },
+}
+
+export default function LoginPage() {
   const navigate = useNavigate()
+  const { login } = useAuthContext()
 
-  const [form, setForm] = useState({ email: '', wachtwoord: '' })
-  const [serverFout, setServerFout] = useState('')
-  const [laden, setLaden] = useState(false)
+  const [fields, setFields] = useState({ email: '', password: '' })
+  const [errors, setErrors] = useState({})
+  const [touched, setTouched] = useState({})
+  const [showPw, setShowPw] = useState(false)
+  const [firebaseError, setFirebaseError] = useState(null)
+  const [submitting, setSubmitting] = useState(false)
 
-  function handleChange(e) {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
-    setServerFout('')
+  const handleChange = (field) => (e) => {
+    const value = e.target.value
+    setFields((prev) => ({ ...prev, [field]: value }))
+    if (touched[field]) {
+      setErrors((prev) => ({ ...prev, [field]: validate[field](value) }))
+    }
   }
 
-  async function handleSubmit(e) {
+  const handleBlur = (field) => () => {
+    setTouched((prev) => ({ ...prev, [field]: true }))
+    setErrors((prev) => ({ ...prev, [field]: validate[field](fields[field]) }))
+  }
+
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.email || !form.wachtwoord) {
-      setServerFout('Vul alle velden in.')
-      return
+    setFirebaseError(null)
+
+    const newErrors = {
+      email: validate.email(fields.email),
+      password: validate.password(fields.password),
     }
-    setLaden(true)
+    setErrors(newErrors)
+    setTouched({ email: true, password: true })
+    if (Object.values(newErrors).some(Boolean)) return
+
+    setSubmitting(true)
+
     try {
-      await login(form.email.trim(), form.wachtwoord)
+      await login(fields.email.trim(), fields.password)
       navigate('/dashboard')
     } catch (err) {
       if (
@@ -31,109 +61,234 @@ export default function Login() {
         err.code === 'auth/wrong-password' ||
         err.code === 'auth/user-not-found'
       ) {
-        setServerFout('E-mailadres of wachtwoord klopt niet.')
+        setFirebaseError('E-mailadres of wachtwoord klopt niet.')
       } else {
-        setServerFout('Er ging iets mis. Probeer het opnieuw.')
+        setFirebaseError('Er ging iets mis. Probeer het opnieuw.')
       }
     } finally {
-      setLaden(false)
+      setSubmitting(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] grid md:grid-cols-2">
+    <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-4 py-10 relative overflow-x-hidden">
 
-      {/* Left panel */}
-      <div className="hidden md:flex flex-col justify-between p-12 bg-[#0f0f0f] border-r border-white/5">
-        <div className="flex items-center gap-2">
-          <span className="text-[#84cc16] text-2xl leading-none">⬡</span>
-          <span className="text-white text-xl font-bold tracking-widest uppercase">Stapril</span>
-        </div>
-        <div>
-          <p className="text-[#84cc16] text-xs tracking-[0.2em] uppercase mb-4">april challenge</p>
-          <h1 className="text-white font-black leading-[0.9] text-[clamp(4rem,7vw,7rem)] tracking-tight">
-            10.000<br />stappen.<br />Elke dag.
-          </h1>
-        </div>
-        <div className="flex items-center gap-8 pt-8 border-t border-white/5">
-          {[['30', 'dagen'], ['5', 'badges'], ['∞', 'teams']].map(([num, lbl]) => (
-            <div key={lbl}>
-              <div className="text-white text-3xl font-black leading-none">{num}</div>
-              <div className="text-white/30 text-xs uppercase tracking-widest mt-1">{lbl}</div>
-            </div>
-          ))}
-        </div>
+      <div className="pointer-events-none fixed inset-0 z-0">
+        <div className="absolute top-0 left-0 w-[500px] h-[400px] bg-lime-400 opacity-[0.04] rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-lime-400 opacity-[0.03] rounded-full blur-3xl" />
       </div>
 
-      {/* Right panel */}
-      <div className="flex items-center justify-center p-8">
-        <div className="w-full max-w-sm">
+      <div className="relative z-10 w-full max-w-md animate-[fadeUp_0.45s_ease_both]">
 
-          {/* Mobile logo */}
-          <div className="flex items-center gap-2 mb-8 md:hidden">
-            <span className="text-[#84cc16] text-xl leading-none">⬡</span>
-            <span className="text-white text-lg font-bold tracking-widest uppercase">Stapril</span>
+        {/* Brand */}
+        <div className="flex items-center gap-3 mb-8">
+          <div className="w-11 h-11 bg-lime-400 rounded-xl flex items-center justify-center text-zinc-950 shrink-0">
+            <FootstepsIcon />
           </div>
+          <span className="font-black text-3xl tracking-widest text-zinc-100 uppercase">
+            Stap<span className="text-lime-400">ril</span>
+          </span>
+        </div>
 
-          <h2 className="text-white text-2xl font-bold tracking-tight mb-1">Inloggen</h2>
-          <p className="text-white/30 text-sm mb-8">
-            Nog geen account?{' '}
-            <Link to="/register" className="text-[#84cc16] hover:underline">Registreren</Link>
+        {/* Heading */}
+        <div className="mb-7">
+          <h1 className="text-4xl font-black tracking-tight text-zinc-100 leading-tight">
+            Welkom <span className="text-lime-400">terug</span>
+          </h1>
+          <p className="mt-2 text-zinc-500 text-sm leading-relaxed">
+            Log in en ga verder met je stappenchallenge.
           </p>
+        </div>
+
+        {/* Card */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-7">
+
+          {/* Firebase foutmelding */}
+          {firebaseError && (
+            <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm mb-5">
+              <AlertIcon />
+              <span>{firebaseError}</span>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} noValidate className="space-y-5">
-            <div className="space-y-1.5">
-              <label className="text-white/40 text-xs uppercase tracking-widest" htmlFor="email">
-                E-mailadres
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                placeholder="jan@bedrijf.nl"
-                value={form.email}
-                onChange={handleChange}
-                className="w-full bg-white/5 border border-white/10 focus:border-[#84cc16]/60 rounded-lg px-3.5 py-3 text-white text-sm placeholder:text-white/20 outline-none transition-colors"
-              />
-            </div>
 
-            <div className="space-y-1.5">
-              <label className="text-white/40 text-xs uppercase tracking-widest" htmlFor="wachtwoord">
+            {/* E-mail */}
+            <Field
+              label="E-mailadres"
+              id="email"
+              type="email"
+              value={fields.email}
+              placeholder="jan@bedrijf.nl"
+              autoComplete="email"
+              error={errors.email}
+              icon={<MailIcon />}
+              onChange={handleChange('email')}
+              onBlur={handleBlur('email')}
+            />
+
+            {/* Wachtwoord */}
+            <div>
+              <label htmlFor="password" className="block text-xs font-semibold uppercase tracking-widest text-zinc-500 mb-1.5">
                 Wachtwoord
               </label>
-              <input
-                id="wachtwoord"
-                name="wachtwoord"
-                type="password"
-                autoComplete="current-password"
-                placeholder="••••••••"
-                value={form.wachtwoord}
-                onChange={handleChange}
-                className="w-full bg-white/5 border border-white/10 focus:border-[#84cc16]/60 rounded-lg px-3.5 py-3 text-white text-sm placeholder:text-white/20 outline-none transition-colors"
-              />
+              <div className={`relative flex items-center rounded-xl border bg-zinc-950 transition-all ${
+                errors.password
+                  ? 'border-red-500 ring-2 ring-red-500/20'
+                  : 'border-zinc-800 focus-within:border-lime-400 focus-within:ring-2 focus-within:ring-lime-400/20'
+              }`}>
+                <span className="absolute left-3.5 text-zinc-600 pointer-events-none">
+                  <LockIcon />
+                </span>
+                <input
+                  id="password"
+                  type={showPw ? 'text' : 'password'}
+                  value={fields.password}
+                  placeholder="Jouw wachtwoord"
+                  autoComplete="current-password"
+                  className="w-full bg-transparent text-zinc-100 text-sm pl-10 pr-10 py-3 outline-none placeholder:text-zinc-700 rounded-xl"
+                  onChange={handleChange('password')}
+                  onBlur={handleBlur('password')}
+                  aria-invalid={!!errors.password}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPw((v) => !v)}
+                  aria-label={showPw ? 'Wachtwoord verbergen' : 'Wachtwoord tonen'}
+                  className="absolute right-3.5 text-zinc-600 hover:text-zinc-300 transition-colors"
+                >
+                  {showPw ? <EyeOffIcon /> : <EyeIcon />}
+                </button>
+              </div>
+              {errors.password && (
+                <p className="flex items-center gap-1.5 mt-1.5 text-xs text-red-400" role="alert">
+                  <AlertIcon /> {errors.password}
+                </p>
+              )}
             </div>
 
-            {serverFout && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 text-red-400 text-sm">
-                {serverFout}
-              </div>
-            )}
-
+            {/* Submit */}
             <button
               type="submit"
-              disabled={laden}
-              className="w-full bg-[#84cc16] hover:bg-[#95d926] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed
-                text-[#0a0a0a] font-bold text-sm rounded-lg py-3 transition-all flex items-center justify-center gap-2 mt-2"
+              disabled={submitting}
+              className="w-full mt-1 bg-lime-400 hover:bg-lime-300 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed text-zinc-950 font-black text-sm uppercase tracking-widest rounded-xl py-3.5 flex items-center justify-center transition-all duration-150 min-h-[48px]"
             >
-              {laden && (
-                <span className="w-4 h-4 border-2 border-black/20 border-t-black/70 rounded-full animate-spin" />
+              {submitting ? (
+                <span className="w-5 h-5 border-2 border-zinc-950 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                'Inloggen →'
               )}
-              {laden ? 'Inloggen...' : 'Inloggen'}
             </button>
           </form>
+
+          <p className="text-center mt-5 text-sm text-zinc-500">
+            Nog geen account?{' '}
+            <Link to="/register" className="text-lime-400 font-semibold hover:opacity-75 transition-opacity">
+              Registreren
+            </Link>
+          </p>
+        </div>
+
+        {/* Voortgangspunten */}
+        <div className="flex gap-1.5 justify-center mt-5">
+          <span className="w-2 h-2 rounded-full bg-zinc-700" />
+          <span className="w-2 h-2 rounded-full bg-lime-400 scale-125" />
+          <span className="w-2 h-2 rounded-full bg-zinc-700" />
         </div>
       </div>
+
+      <style>{`
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(16px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
+  )
+}
+
+function Field({ label, id, type, value, placeholder, autoComplete, error, icon, onChange, onBlur }) {
+  return (
+    <div>
+      <label htmlFor={id} className="block text-xs font-semibold uppercase tracking-widest text-zinc-500 mb-1.5">
+        {label}
+      </label>
+      <div className={`relative flex items-center rounded-xl border bg-zinc-950 transition-all ${
+        error
+          ? 'border-red-500 ring-2 ring-red-500/20'
+          : 'border-zinc-800 focus-within:border-lime-400 focus-within:ring-2 focus-within:ring-lime-400/20'
+      }`}>
+        <span className="absolute left-3.5 text-zinc-600 pointer-events-none">{icon}</span>
+        <input
+          id={id}
+          type={type}
+          value={value}
+          placeholder={placeholder}
+          autoComplete={autoComplete}
+          className="w-full bg-transparent text-zinc-100 text-sm pl-10 pr-4 py-3 outline-none placeholder:text-zinc-700 rounded-xl"
+          onChange={onChange}
+          onBlur={onBlur}
+          aria-describedby={error ? `err-${id}` : undefined}
+          aria-invalid={!!error}
+        />
+      </div>
+      {error && (
+        <p id={`err-${id}`} className="flex items-center gap-1.5 mt-1.5 text-xs text-red-400" role="alert">
+          <AlertIcon /> {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
+function FootstepsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" width="22" height="22">
+      <circle cx="10" cy="5" r="2" fill="currentColor"/>
+      <path d="M7 8l1 5h4l1-5H7z" fill="currentColor"/>
+      <path d="M6 13l1 6h5l1-6H6z" fill="currentColor" opacity=".6"/>
+      <circle cx="16" cy="9" r="2" fill="currentColor"/>
+      <path d="M13 12l1 5h4l1-5h-6z" fill="currentColor"/>
+    </svg>
+  )
+}
+function MailIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" width="16" height="16" stroke="currentColor" strokeWidth="1.5">
+      <rect x="1" y="3" width="14" height="10" rx="2"/>
+      <path d="M1 5l7 5 7-5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+function LockIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" width="16" height="16" stroke="currentColor" strokeWidth="1.5">
+      <rect x="3" y="7" width="10" height="7" rx="1.5"/>
+      <path d="M5 7V5a3 3 0 016 0v2" strokeLinecap="round"/>
+    </svg>
+  )
+}
+function EyeIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" width="16" height="16" stroke="currentColor" strokeWidth="1.5">
+      <path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" strokeLinecap="round"/>
+      <circle cx="8" cy="8" r="2"/>
+    </svg>
+  )
+}
+function EyeOffIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" width="16" height="16" stroke="currentColor" strokeWidth="1.5">
+      <path d="M2 2l12 12M6.5 6.6A3 3 0 0011.4 11" strokeLinecap="round"/>
+      <path d="M1 8s2.5-5 7-5c1.2 0 2.3.3 3.3.8M15 8s-.8 1.5-2.3 2.8" strokeLinecap="round"/>
+    </svg>
+  )
+}
+function AlertIcon() {
+  return (
+    <svg viewBox="0 0 12 12" fill="none" width="12" height="12" className="shrink-0">
+      <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5"/>
+      <path d="M6 4v3M6 8.5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    </svg>
   )
 }
