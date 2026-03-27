@@ -98,3 +98,24 @@ export async function laadTeam(teamId) {
   const snap = await getDoc(doc(db, 'teams', teamId))
   return snap.exists() ? { id: snap.id, ...snap.data() } : null
 }
+
+
+// Laad alle leden van een team
+export async function laadTeamDetails(teamId) {
+  const teamSnap = await getDoc(doc(db, 'teams', teamId))
+  if (!teamSnap.exists()) return null
+
+  const teamData = { id: teamSnap.id, ...teamSnap.data() }
+
+  // Haal alle users op met dit teamId
+  const q = query(collection(db, 'users'), where('teamId', '==', teamId))
+  const ledenSnap = await getDocs(q)
+  const leden = ledenSnap.docs.map(d => ({ uid: d.id, ...d.data() }))
+
+  return { ...teamData, leden }
+}
+
+// Verlaat een team
+export async function verlatenTeam(uid) {
+  await updateDoc(doc(db, 'users', uid), { teamId: null })
+}
