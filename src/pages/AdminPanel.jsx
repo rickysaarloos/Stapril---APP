@@ -89,6 +89,13 @@ export default function AdminPanel() {
             Ingelogd als <span className="text-white/50">{user?.naam}</span>
           </p>
         </div>
+
+          <button
+    onClick={() => navigate('/dashboard')}
+    className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-3 py-1.5"
+  >
+    Dashboard
+  </button>
  
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4">

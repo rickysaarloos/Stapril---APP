@@ -138,6 +138,20 @@ export default function Dashboard() {
             }
           </p>
         </div>
+
+        <div className="flex items-center gap-4">
+  <span className="text-white/40 text-sm hidden sm:block">{user?.email}</span>
+
+  {/* Alleen zichtbaar voor admins */}
+  {user?.role === 'admin' && (
+    <button
+      onClick={() => navigate('/admin')}
+      className="text-xs uppercase tracking-widest text-[#84cc16]/60 hover:text-[#84cc16] transition-colors border border-[#84cc16]/20 hover:border-[#84cc16]/40 rounded-lg px-3 py-1.5"
+    >
+      Admin
+    </button>
+  )}
+</div>
  
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4">
