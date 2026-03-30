@@ -20,10 +20,14 @@ export function useStappenGrafiek(uid, refresh = 0) {
           map[datum] = stappen
         })
 
-        // Bouw array van alle 30 aprildagen
-        const dagen = Array.from({ length: 30 }, (_, i) => {
+        const nu = new Date()
+        const jaar = nu.getFullYear()
+        const maand = nu.getMonth()
+        const aantalDagen = new Date(jaar, maand + 1, 0).getDate()
+
+        const dagen = Array.from({ length: aantalDagen }, (_, i) => {
           const dag = i + 1
-          const datum = `${new Date().getFullYear()}-04-${String(dag).padStart(2, '0')}`
+          const datum = `${jaar}-${String(maand + 1).padStart(2, '0')}-${String(dag).padStart(2, '0')}`
           return {
             dag,
             datum,

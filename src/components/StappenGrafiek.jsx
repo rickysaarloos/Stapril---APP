@@ -12,7 +12,6 @@ import { useStappenGrafiek } from '../hooks/useStappenGrafiek'
 
 const DAGDOEL = 10000
 
-// ── Custom tooltip ────────────────────────────────────────
 function CustomTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null
   const stappen = payload[0]?.value
@@ -31,7 +30,6 @@ function CustomTooltip({ active, payload, label }) {
   )
 }
 
-// ── Lege staat ────────────────────────────────────────────
 function LegeStaat() {
   return (
     <div className="flex flex-col items-center justify-center h-48 gap-3 text-center">
@@ -46,23 +44,20 @@ function LegeStaat() {
   )
 }
 
-// ── Hoofdcomponent ────────────────────────────────────────
 export default function StappenGrafiek({ uid, refresh }) {
   const { data, laden } = useStappenGrafiek(uid, refresh)
 
+  const nu = new Date()
   const heeftData = data.some(d => d.stappen !== null)
-  const vandaagDag = (() => {
-    const nu = new Date()
-    const start = new Date(nu.getFullYear(), 3, 1)
-    return Math.floor((nu - start) / (1000 * 60 * 60 * 24)) + 1
-  })()
+  const vandaagDag = nu.getDate()
+  const maandNaam = nu.toLocaleString('nl-NL', { month: 'long', year: 'numeric' })
 
   return (
     <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-6 space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-white font-bold">Stappen per dag</h2>
-          <p className="text-white/30 text-xs mt-0.5">april 2025</p>
+          <p className="text-white/30 text-xs mt-0.5">{maandNaam}</p>
         </div>
         <div className="flex items-center gap-3 text-xs text-white/30">
           <span className="flex items-center gap-1.5">
