@@ -107,6 +107,7 @@ export default function Dashboard() {
 
   const dag = dagVanApril()
   const voortgang = Math.min((stappenVandaag ?? 0) / 10000, 1)
+  const initials = (user?.naam || user?.email || 'U').slice(0, 2).toUpperCase()
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
@@ -114,10 +115,8 @@ export default function Dashboard() {
       {/* Navbar */}
       <header className="border-b border-white/5 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-lime-400 text-xl leading-none">⬡</span>
-          <span className="font-black tracking-widest uppercase text-sm text-zinc-100">
-            Stap<span className="text-lime-400">ril</span>
-          </span>
+          <span className="text-[#84cc16] text-xl leading-none">⬡</span>
+          <span className="text-white font-bold tracking-widest uppercase text-sm">Stapril</span>
         </div>
         <div className="flex items-center gap-3">
           {user?.role === 'admin' && (
@@ -129,13 +128,18 @@ export default function Dashboard() {
             </button>
           )}
           <span className="text-white/40 text-sm hidden sm:block">{user?.email}</span>
+
+          {/* Profielknop */}
           <button
             onClick={() => navigate('/profiel')}
-            className="w-8 h-8 rounded-xl bg-[#84cc16]/10 border border-[#84cc16]/25 flex items-center justify-center text-[#84cc16] text-xs font-black hover:bg-[#84cc16]/20 transition-colors flex-shrink-0"
-            title="Profiel bekijken"
+            className="flex items-center gap-2 bg-[#84cc16]/10 hover:bg-[#84cc16]/20 border border-[#84cc16]/25 hover:border-[#84cc16]/50 text-[#84cc16] text-xs font-bold rounded-xl px-3 py-2 transition-all duration-200"
           >
-            {(user?.naam || user?.email || 'U').slice(0, 2).toUpperCase()}
+            <span className="w-5 h-5 rounded-lg bg-[#84cc16]/20 flex items-center justify-center text-[10px] font-black">
+              {initials}
+            </span>
+            <span className="hidden sm:block tracking-wide">Profiel</span>
           </button>
+
           <button
             onClick={handleLogout}
             className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-3 py-1.5"
@@ -164,41 +168,62 @@ export default function Dashboard() {
 
         {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {[
-            {
-              label: 'Dag',
-              value: dag,
-              suffix: '/ 30',
-            },
-            {
-              label: 'Totaal april',
-              value: statsLaden ? '…' : totaalStappen.toLocaleString('nl-NL'),
-              suffix: 'stappen',
-            },
-            {
-              label: 'Doeldagen',
-              value: statsLaden ? '…' : doelDagen,
-              suffix: '≥ 10.000',
-            },
-            {
-              label: 'Streak',
-              value: statsLaden ? '…' : streak,
-              suffix: streak === 1 ? 'dag' : 'dagen',
-              accent: streak >= 3,
-            },
-          ].map(({ label, value, suffix, accent }) => (
-            <div
-              key={label}
-              className={`bg-white/[0.03] border rounded-2xl p-5 flex flex-col gap-1 transition-colors
-                ${accent ? 'border-[#84cc16]/30 bg-[#84cc16]/[0.04]' : 'border-white/5'}`}
-            >
-              <span className="text-white/30 text-xs uppercase tracking-widest">{label}</span>
-              <span className={`text-3xl font-black leading-none ${accent ? 'text-[#84cc16]' : 'text-white'}`}>
-                {value}
-              </span>
-              <span className="text-white/20 text-xs">{suffix}</span>
+
+          {/* Dag */}
+          <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-white/30 text-xs uppercase tracking-widest">Dag</span>
+              <span className="text-lg">📅</span>
             </div>
-          ))}
+            <span className="text-white text-3xl font-black leading-none">{dag}</span>
+            <span className="text-white/20 text-xs">van 30 dagen</span>
+          </div>
+
+          {/* Totaal */}
+          <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-white/30 text-xs uppercase tracking-widest">Totaal</span>
+              <span className="text-lg">👟</span>
+            </div>
+            <span className="text-white text-3xl font-black leading-none">
+              {statsLaden ? '…' : totaalStappen.toLocaleString('nl-NL')}
+            </span>
+            <span className="text-white/20 text-xs">stappen deze maand</span>
+          </div>
+
+          {/* Doeldagen */}
+          <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-white/30 text-xs uppercase tracking-widest">Doeldagen</span>
+              <span className="text-lg">🎯</span>
+            </div>
+            <span className="text-white text-3xl font-black leading-none">
+              {statsLaden ? '…' : doelDagen}
+            </span>
+            <span className="text-white/20 text-xs">≥ 10.000 stappen</span>
+          </div>
+
+          {/* Streak */}
+          <div className={`rounded-2xl p-5 flex flex-col gap-2 border transition-colors
+            ${streak >= 3
+              ? 'bg-[#84cc16]/[0.06] border-[#84cc16]/30'
+              : 'bg-white/[0.03] border-white/5'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className={`text-xs uppercase tracking-widest ${streak >= 3 ? 'text-[#84cc16]/60' : 'text-white/30'}`}>
+                Streak
+              </span>
+              <span className="text-lg">{streak >= 3 ? '🔥' : '💤'}</span>
+            </div>
+            <span className={`text-3xl font-black leading-none ${streak >= 3 ? 'text-[#84cc16]' : 'text-white'}`}>
+              {statsLaden ? '…' : streak}
+            </span>
+            <span className={`text-xs ${streak >= 3 ? 'text-[#84cc16]/40' : 'text-white/20'}`}>
+              {streak === 1 ? 'dag op rij' : 'dagen op rij'}
+            </span>
+          </div>
+
         </div>
 
         {/* Stappen invoer */}
@@ -271,7 +296,7 @@ export default function Dashboard() {
         <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-6 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-white font-bold">Challenge voortgang</h2>
-            <span className="text-white/30 text-xs uppercase tracking-widest">april 2025</span>
+            <span className="text-white/30 text-xs uppercase tracking-widest">april 2026</span>
           </div>
           <div className="w-full bg-white/5 rounded-full h-2">
             <div
@@ -286,15 +311,18 @@ export default function Dashboard() {
 
         {/* Team */}
         <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-6 flex items-center justify-between">
-          <div>
-            <h2 className="text-white font-bold">Team</h2>
-            <p className="text-white/30 text-sm mt-0.5">
-              {initLaden
-                ? '…'
-                : user?.teamId
-                  ? `Je zit in ${teamNaam ?? user.teamId}`
-                  : 'Je bent nog niet in een team'}
-            </p>
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">👥</span>
+            <div>
+              <h2 className="text-white font-bold">Team</h2>
+              <p className="text-white/30 text-sm mt-0.5">
+                {initLaden
+                  ? '…'
+                  : user?.teamId
+                    ? `Je zit in ${teamNaam ?? user.teamId}`
+                    : 'Je bent nog niet in een team'}
+              </p>
+            </div>
           </div>
           <button
             onClick={() => navigate('/team')}
