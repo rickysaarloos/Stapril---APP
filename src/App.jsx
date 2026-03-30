@@ -9,60 +9,55 @@ import AdminPanel from './pages/AdminPanel'
 import Team from './pages/Team'
 import Profiel from './pages/Profiel'
 
-
+// PublicRoute moet BINNEN AuthProvider staan — daarom als apart component
 function PublicRoute({ children }) {
-  const { user } = useAuthContext()
+  const { user, loading } = useAuthContext()
+  if (loading) return null
   return user ? <Navigate to="/dashboard" replace /> : children
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+
+      {/* Publieke routes */}
+      <Route path="/register" element={
+        <PublicRoute><Register /></PublicRoute>
+      } />
+
+      <Route path="/login" element={
+        <PublicRoute><Login /></PublicRoute>
+      } />
+
+      {/* Beschermde routes */}
+      <Route path="/dashboard" element={
+        <ProtectedRoute><Dashboard /></ProtectedRoute>
+      } />
+
+      <Route path="/team" element={
+        <ProtectedRoute><Team /></ProtectedRoute>
+      } />
+
+      <Route path="/profiel" element={
+        <ProtectedRoute><Profiel /></ProtectedRoute>
+      } />
+
+      <Route path="/admin" element={
+        <ProtectedRoute adminOnly><AdminPanel /></ProtectedRoute>
+      } />
+
+      {/* Fallback */}
+      <Route path="*" element={<Navigate to="/login" replace />} />
+
+    </Routes>
+  )
 }
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
-
-          {/* Publieke routes */}
-          <Route path="/register" element={
-            <PublicRoute>
-              <Register />
-            </PublicRoute>
-          } />
-
-          <Route path="/login" element={
-            <PublicRoute>
-              <Login />
-            </PublicRoute>
-          } />
-
-          {/* Beschermde routes */}
-          <Route path="/dashboard" element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          } />
-
-          <Route path="/team" element={
-            <ProtectedRoute>
-              <Team />
-            </ProtectedRoute>
-          } />
-
-          <Route path="/profiel" element={
-            <ProtectedRoute>
-              <Profiel />
-            </ProtectedRoute>
-          } />
-
-          <Route path="/admin" element={
-            <ProtectedRoute adminOnly>
-              <AdminPanel />
-            </ProtectedRoute>
-          } />
-
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/login" replace />} />
-
-        </Routes>
+        <AppRoutes />
       </AuthProvider>
     </BrowserRouter>
   )

@@ -3,32 +3,31 @@ import { useNavigate } from 'react-router-dom'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuthContext } from '../context/AuthContext'
- 
-// ── helpers ──────────────────────────────────────────────────────────────────
- 
+import { useStepStats } from '../hooks/useStepStats'
+
 function dagVanApril() {
   const nu = new Date()
   const start = new Date(nu.getFullYear(), 3, 1)
   const diff = Math.floor((nu - start) / (1000 * 60 * 60 * 24)) + 1
   return Math.min(Math.max(diff, 1), 30)
 }
- 
+
 function vandaagISO() {
   return new Date().toISOString().split('T')[0]
 }
- 
+
 async function laadTeamNaam(teamId) {
   if (!teamId) return null
   const snap = await getDoc(doc(db, 'teams', teamId))
   return snap.exists() ? (snap.data().naam ?? null) : null
 }
- 
+
 async function laadStappenVandaag(uid) {
   const id = `${uid}_${vandaagISO()}`
   const snap = await getDoc(doc(db, 'stappen', id))
   return snap.exists() ? snap.data().stappen : null
 }
- 
+
 async function slaStappenOp(uid, stappen) {
   const id = `${uid}_${vandaagISO()}`
   await setDoc(doc(db, 'stappen', id), {
@@ -37,13 +36,17 @@ async function slaStappenOp(uid, stappen) {
     stappen: Number(stappen),
   })
 }
- 
-// ── component ─────────────────────────────────────────────────────────────────
- 
+
+function formatSteps(n) {
+  if (n >= 1000) return (n / 1000).toFixed(1).replace('.0', '') + 'k'
+  return n.toString()
+}
+
 export default function Dashboard() {
   const { user, logout } = useAuthContext()
   const navigate = useNavigate()
- 
+  const { stats } = useStepStats(user?.uid)
+
   const [teamNaam, setTeamNaam] = useState(null)
   const [stappenVandaag, setStappenVandaag] = useState(null)
   const [stappenInput, setStappenInput] = useState('')
@@ -51,7 +54,7 @@ export default function Dashboard() {
   const [stappenFout, setStappenFout] = useState('')
   const [stappenOpgeslagen, setStappenOpgeslagen] = useState(false)
   const [initLaden, setInitLaden] = useState(true)
- 
+
   useEffect(() => {
     if (!user) return
     async function init() {
@@ -68,12 +71,12 @@ export default function Dashboard() {
     }
     init()
   }, [user])
- 
+
   async function handleLogout() {
     await logout()
     navigate('/login')
   }
- 
+
   async function handleStappenOpslaan(e) {
     e.preventDefault()
     const aantal = parseInt(stappenInput, 10)
@@ -98,13 +101,13 @@ export default function Dashboard() {
       setStappenLaden(false)
     }
   }
- 
+
   const dag = dagVanApril()
   const voortgang = Math.min((stappenVandaag ?? 0) / 10000, 1)
- 
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
- 
+
       {/* Navbar */}
       <header className="border-b border-white/5 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -113,6 +116,14 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-4">
           <span className="text-white/40 text-sm hidden sm:block">{user?.email}</span>
+          {user?.role === 'admin' && (
+            <button
+              onClick={() => navigate('/admin')}
+              className="text-xs uppercase tracking-widest text-[#84cc16]/60 hover:text-[#84cc16] transition-colors border border-[#84cc16]/20 hover:border-[#84cc16]/40 rounded-lg px-3 py-1.5"
+            >
+              Admin
+            </button>
+          )}
           <button
             onClick={handleLogout}
             className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-3 py-1.5"
@@ -121,23 +132,15 @@ export default function Dashboard() {
           </button>
         </div>
       </header>
- 
+
       <main className="max-w-4xl mx-auto px-6 py-12 space-y-8">
- 
+
         {/* Welkom */}
         <div>
           <p className="text-[#84cc16] text-xs tracking-[0.2em] uppercase mb-2">welkom terug</p>
           <h1 className="text-4xl sm:text-5xl font-black tracking-tight leading-tight">
-            {user?.naam || 'Deelnemer'}
+            {user?.displayName || user?.naam || 'Deelnemer'}
           </h1>
-
-              <button
-      onClick={() => navigate('/profiel')}
-      className="w-18 h-10 rounded-xl bg-[#84cc16]/10 border border-[#84cc16]/25 flex items-center justify-center text-[#84cc16] text-xs font-black hover:bg-[#84cc16]/20 transition-colors "
-      title="Profiel"
-    > profiel
-      
-    </button>
           <p className="text-white/30 text-sm mt-2">
             Rol: <span className="text-white/50 capitalize">{user?.role || 'deelnemer'}</span>
             {user?.teamId
@@ -147,22 +150,23 @@ export default function Dashboard() {
           </p>
         </div>
 
-        <div className="flex items-center gap-4">
-  <span className="text-white/40 text-sm hidden sm:block">{user?.email}</span>
+        {/* S2-03 — Statistieken: totaal, doeldagen, streak */}
+        <div className="grid grid-cols-3 gap-4">
+          {[
+            { label: 'Totaal stappen', value: formatSteps(stats.totalSteps) },
+            { label: 'Dagen doel gehaald', value: stats.goalDays, highlight: true },
+            { label: 'Streak', value: `🔥 ${stats.streak}` },
+          ].map(({ label, value, highlight }) => (
+            <div key={label} className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 flex flex-col gap-1">
+              <span className="text-white/30 text-xs uppercase tracking-widest">{label}</span>
+              <span className={`text-3xl font-black leading-none ${highlight ? 'text-[#84cc16]' : 'text-white'}`}>
+                {value}
+              </span>
+            </div>
+          ))}
+        </div>
 
-  {/* Alleen zichtbaar voor admins */}
-  {user?.role === 'admin' && (
-    <button
-      onClick={() => navigate('/admin')}
-      className="text-xs uppercase tracking-widest text-[#84cc16]/60 hover:text-[#84cc16] transition-colors border border-[#84cc16]/20 hover:border-[#84cc16]/40 rounded-lg px-3 py-1.5"
-    >
-      Admin
-    </button>
-    
-  )}
-</div>
- 
-        {/* Stats */}
+        {/* Dag stats */}
         <div className="grid grid-cols-3 gap-4">
           {[
             { label: 'Dag', value: dag, suffix: '/ 30' },
@@ -176,7 +180,7 @@ export default function Dashboard() {
             </div>
           ))}
         </div>
- 
+
         {/* Stappen invoer */}
         <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-6 space-y-4">
           <div className="flex items-center justify-between">
@@ -190,7 +194,7 @@ export default function Dashboard() {
             </div>
             <span className="text-2xl">👟</span>
           </div>
- 
+
           <form onSubmit={handleStappenOpslaan} noValidate className="flex gap-3">
             <input
               type="number"
@@ -204,8 +208,7 @@ export default function Dashboard() {
             <button
               type="submit"
               disabled={stappenLaden}
-              className="bg-[#84cc16] hover:bg-[#95d926] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed
-                text-[#0a0a0a] font-bold text-sm rounded-lg px-5 py-3 transition-all flex items-center gap-2 whitespace-nowrap"
+              className="bg-[#84cc16] hover:bg-[#95d926] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed text-[#0a0a0a] font-bold text-sm rounded-lg px-5 py-3 transition-all flex items-center gap-2 whitespace-nowrap"
             >
               {stappenLaden && (
                 <span className="w-4 h-4 border-2 border-black/20 border-t-black/70 rounded-full animate-spin" />
@@ -213,7 +216,7 @@ export default function Dashboard() {
               {stappenLaden ? 'Opslaan...' : 'Opslaan'}
             </button>
           </form>
- 
+
           {stappenFout && (
             <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 text-red-400 text-sm">
               {stappenFout}
@@ -224,7 +227,7 @@ export default function Dashboard() {
               ✓ Stappen opgeslagen!
             </div>
           )}
- 
+
           {stappenVandaag !== null && (
             <div className="space-y-1.5 pt-1">
               <div className="flex justify-between text-xs text-white/30">
@@ -240,7 +243,7 @@ export default function Dashboard() {
             </div>
           )}
         </div>
- 
+
         {/* Challenge voortgang */}
         <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-6 space-y-3">
           <div className="flex items-center justify-between">
@@ -257,7 +260,7 @@ export default function Dashboard() {
             Dag {dag} van 30 · {30 - dag} dagen resterend
           </p>
         </div>
- 
+
         {/* Team */}
         <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-6 flex items-center justify-between">
           <div>
@@ -277,7 +280,17 @@ export default function Dashboard() {
             {user?.teamId ? 'Bekijken' : 'Aansluiten'}
           </button>
         </div>
- 
+
+        {/* Profiel knop */}
+        <div className="flex justify-end">
+          <button
+            onClick={() => navigate('/profiel')}
+            className="text-xs uppercase tracking-widest border border-white/10 hover:border-[#84cc16]/40 text-white/50 hover:text-white rounded-lg px-4 py-2 transition-colors"
+          >
+            Profiel
+          </button>
+        </div>
+
       </main>
     </div>
   )
