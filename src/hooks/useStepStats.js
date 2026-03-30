@@ -1,74 +1,76 @@
-import { useState, useEffect } from 'react'
-import { collection, onSnapshot } from 'firebase/firestore'
+import { useEffect, useState } from 'react'
+import { collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '../firebase'
 
-// Berekent statistieken op basis van een object { 'YYYY-MM-DD': stappen }
-export function calculateStats(stepsMap) {
-  const GOAL = 10000
+const DAGDOEL = 10000
 
-  // Totaal aantal stappen
-  const totalSteps = Object.values(stepsMap).reduce((sum, s) => sum + s, 0)
+function berekenStreak(datums) {
+  if (!datums.length) return 0
 
-  // Aantal dagen dat het doel gehaald is
-  const goalDays = Object.values(stepsMap).filter((s) => s >= GOAL).length
+  const gesorteerd = [...datums].sort((a, b) => b.localeCompare(a))
 
-  // Streak berekenen — opeenvolgende dagen MET 10.000+ stappen tot en met vandaag
-  // We lopen terug van vandaag en stoppen zodra een dag het doel niet haalt
-  const today = new Date()
   let streak = 0
-  let current = new Date(today)
+  let verwacht = new Date()
+  verwacht.setHours(0, 0, 0, 0)
 
-  while (true) {
-    const key = formatDate(current)
-    const steps = stepsMap[key] ?? 0
+  for (const datum of gesorteerd) {
+    const dag = new Date(datum + 'T00:00:00')
+    const verschil = Math.round((verwacht - dag) / (1000 * 60 * 60 * 24))
 
-    if (steps >= GOAL) {
+    if (verschil === 0 || verschil === 1) {
       streak++
-      current.setDate(current.getDate() - 1)
+      verwacht = dag
     } else {
-      // Geef één dag speling — als vandaag nog niet ingevoerd is,
-      // kijk dan of gisteren een streak had
-      if (formatDate(current) === formatDate(today) && streak === 0) {
-        current.setDate(current.getDate() - 1)
-        continue
-      }
       break
     }
   }
 
-  return { totalSteps, goalDays, streak }
+  return streak
 }
 
-// Formatteert een Date naar 'YYYY-MM-DD'
-export function formatDate(date) {
-  return date.toISOString().split('T')[0]
-}
-
-// Hook — luistert realtime naar stappen van de ingelogde gebruiker
-export function useStepStats(uid) {
-  const [stepsMap, setStepsMap] = useState({})
-  const [stats, setStats] = useState({ totalSteps: 0, goalDays: 0, streak: 0 })
-  const [loading, setLoading] = useState(true)
+export function useStats(uid, refresh = 0) {
+  const [stats, setStats] = useState({
+    totaalStappen: 0,
+    doelDagen: 0,
+    streak: 0,
+    laden: true,
+  })
 
   useEffect(() => {
     if (!uid) return
 
-    // onSnapshot = realtime listener — update automatisch na stappen invoeren (#46 eis)
-    const ref = collection(db, 'users', uid, 'steps')
-    const unsubscribe = onSnapshot(ref, (snapshot) => {
-      const map = {}
-      snapshot.forEach((doc) => {
-        // doc.id = datum 'YYYY-MM-DD', doc.data().steps = aantal stappen
-        map[doc.id] = doc.data().steps ?? 0
-      })
-      setStepsMap(map)
-      setStats(calculateStats(map))
-      setLoading(false)
-    })
+    async function bereken() {
+      try {
+        const q = query(collection(db, 'stappen'), where('uid', '==', uid))
+        const snap = await getDocs(q)
 
-    // Cleanup — stop de listener als de component unmount
-    return () => unsubscribe()
-  }, [uid])
+        let totaal = 0
+        let doelDagen = 0
+        const doelDatums = []
 
-  return { stepsMap, stats, loading }
+        snap.forEach((doc) => {
+          const { stappen, datum } = doc.data()
+          totaal += stappen
+          if (stappen >= DAGDOEL) {
+            doelDagen++
+            doelDatums.push(datum)
+          }
+        })
+
+        setStats({
+          totaalStappen: totaal,
+          doelDagen,
+          streak: berekenStreak(doelDatums),
+          laden: false,
+        })
+      } catch (e) {
+        console.error(e)
+        setStats(s => ({ ...s, laden: false }))
+      }
+    }
+
+    bereken()
+  }, [uid, refresh])
+
+  return stats
 }
