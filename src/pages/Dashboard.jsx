@@ -1,46 +1,18 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
-import { db } from '../firebase'
 import { useAuthContext } from '../context/AuthContext'
 import StappenGrafiek from '../components/StappenGrafiek'
 import { useStats } from '../hooks/useStepStats'
-
-// ── helpers ───────────────────────────────────────────────────────────────────
-
-function dagVanApril() {
-  const nu = new Date()
-  const start = new Date(nu.getFullYear(), 3, 1)
-  const diff = Math.floor((nu - start) / (1000 * 60 * 60 * 24)) + 1
-  return Math.min(Math.max(diff, 1), 30)
-}
-
-function vandaagISO() {
-  return new Date().toISOString().split('T')[0]
-}
+import { dagVanApril } from '../utils/datum'
+import { laadStappenVandaag, slaStappenOp } from '../utils/stappen'
+import { doc, getDoc } from 'firebase/firestore'
+import { db } from '../firebase'
 
 async function laadTeamNaam(teamId) {
   if (!teamId) return null
   const snap = await getDoc(doc(db, 'teams', teamId))
   return snap.exists() ? (snap.data().naam ?? null) : null
 }
-
-async function laadStappenVandaag(uid) {
-  const id = `${uid}_${vandaagISO()}`
-  const snap = await getDoc(doc(db, 'stappen', id))
-  return snap.exists() ? snap.data().stappen : null
-}
-
-async function slaStappenOp(uid, stappen) {
-  const id = `${uid}_${vandaagISO()}`
-  await setDoc(doc(db, 'stappen', id), {
-    uid,
-    datum: vandaagISO(),
-    stappen: Number(stappen),
-  })
-}
-
-// ── component ─────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
   const { user, logout } = useAuthContext()
@@ -108,6 +80,7 @@ export default function Dashboard() {
   const dag = dagVanApril()
   const voortgang = Math.min((stappenVandaag ?? 0) / 10000, 1)
   const initials = (user?.naam || user?.email || 'U').slice(0, 2).toUpperCase()
+  const maandNaam = new Date().toLocaleString('nl-NL', { month: 'long', year: 'numeric' })
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
@@ -128,8 +101,6 @@ export default function Dashboard() {
             </button>
           )}
           <span className="text-white/40 text-sm hidden sm:block">{user?.email}</span>
-
-          {/* Profielknop */}
           <button
             onClick={() => navigate('/profiel')}
             className="flex items-center gap-2 bg-[#84cc16]/10 hover:bg-[#84cc16]/20 border border-[#84cc16]/25 hover:border-[#84cc16]/50 text-[#84cc16] text-xs font-bold rounded-xl px-3 py-2 transition-all duration-200"
@@ -139,7 +110,6 @@ export default function Dashboard() {
             </span>
             <span className="hidden sm:block tracking-wide">Profiel</span>
           </button>
-
           <button
             onClick={handleLogout}
             className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-3 py-1.5"
@@ -155,7 +125,7 @@ export default function Dashboard() {
         <div>
           <p className="text-[#84cc16] text-xs tracking-[0.2em] uppercase mb-2">welkom terug</p>
           <h1 className="text-4xl sm:text-5xl font-black tracking-tight leading-tight">
-            {user?.displayName || user?.naam || 'Deelnemer'}
+            {user?.naam || 'Deelnemer'}
           </h1>
           <p className="text-white/30 text-sm mt-2">
             Rol: <span className="text-white/50 capitalize">{user?.role || 'deelnemer'}</span>
@@ -169,7 +139,6 @@ export default function Dashboard() {
         {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
 
-          {/* Dag */}
           <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <span className="text-white/30 text-xs uppercase tracking-widest">Dag</span>
@@ -179,7 +148,6 @@ export default function Dashboard() {
             <span className="text-white/20 text-xs">van 30 dagen</span>
           </div>
 
-          {/* Totaal */}
           <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <span className="text-white/30 text-xs uppercase tracking-widest">Totaal</span>
@@ -191,7 +159,6 @@ export default function Dashboard() {
             <span className="text-white/20 text-xs">stappen deze maand</span>
           </div>
 
-          {/* Doeldagen */}
           <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <span className="text-white/30 text-xs uppercase tracking-widest">Doeldagen</span>
@@ -203,7 +170,6 @@ export default function Dashboard() {
             <span className="text-white/20 text-xs">≥ 10.000 stappen</span>
           </div>
 
-          {/* Streak */}
           <div className={`rounded-2xl p-5 flex flex-col gap-2 border transition-colors
             ${streak >= 3
               ? 'bg-[#84cc16]/[0.06] border-[#84cc16]/30'
@@ -296,7 +262,9 @@ export default function Dashboard() {
         <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-6 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-white font-bold">Challenge voortgang</h2>
-            <span className="text-white/30 text-xs uppercase tracking-widest">april 2026</span>
+            <span className="text-white/30 text-xs uppercase tracking-widest capitalize">
+              {maandNaam}
+            </span>
           </div>
           <div className="w-full bg-white/5 rounded-full h-2">
             <div
