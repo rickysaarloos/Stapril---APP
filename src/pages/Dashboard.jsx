@@ -3,7 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuthContext } from '../context/AuthContext'
-import { useStepStats } from '../hooks/useStepStats'
+import StappenGrafiek from '../components/StappenGrafiek'
+import { useStats } from '../hooks/useStepStats'
+
+// ── helpers ───────────────────────────────────────────────────────────────────
 
 function dagVanApril() {
   const nu = new Date()
@@ -37,15 +40,11 @@ async function slaStappenOp(uid, stappen) {
   })
 }
 
-function formatSteps(n) {
-  if (n >= 1000) return (n / 1000).toFixed(1).replace('.0', '') + 'k'
-  return n.toString()
-}
+// ── component ─────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
   const { user, logout } = useAuthContext()
   const navigate = useNavigate()
-  const { stats } = useStepStats(user?.uid)
 
   const [teamNaam, setTeamNaam] = useState(null)
   const [stappenVandaag, setStappenVandaag] = useState(null)
@@ -54,6 +53,9 @@ export default function Dashboard() {
   const [stappenFout, setStappenFout] = useState('')
   const [stappenOpgeslagen, setStappenOpgeslagen] = useState(false)
   const [initLaden, setInitLaden] = useState(true)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
+
+  const { totaalStappen, doelDagen, streak, laden: statsLaden } = useStats(user?.uid, refreshTrigger)
 
   useEffect(() => {
     if (!user) return
@@ -94,6 +96,7 @@ export default function Dashboard() {
       await slaStappenOp(user.uid, aantal)
       setStappenVandaag(aantal)
       setStappenOpgeslagen(true)
+      setRefreshTrigger(t => t + 1)
       setTimeout(() => setStappenOpgeslagen(false), 3000)
     } catch {
       setStappenFout('Opslaan mislukt. Probeer het opnieuw.')
@@ -116,8 +119,7 @@ export default function Dashboard() {
             Stap<span className="text-lime-400">ril</span>
           </span>
         </div>
-        <div className="flex items-center gap-4">
-          <span className="text-white/40 text-sm hidden sm:block">{user?.email}</span>
+        <div className="flex items-center gap-3">
           {user?.role === 'admin' && (
             <button
               onClick={() => navigate('/admin')}
@@ -126,6 +128,14 @@ export default function Dashboard() {
               Admin
             </button>
           )}
+          <span className="text-white/40 text-sm hidden sm:block">{user?.email}</span>
+          <button
+            onClick={() => navigate('/profiel')}
+            className="w-8 h-8 rounded-xl bg-[#84cc16]/10 border border-[#84cc16]/25 flex items-center justify-center text-[#84cc16] text-xs font-black hover:bg-[#84cc16]/20 transition-colors flex-shrink-0"
+            title="Profiel bekijken"
+          >
+            {(user?.naam || user?.email || 'U').slice(0, 2).toUpperCase()}
+          </button>
           <button
             onClick={handleLogout}
             className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-3 py-1.5"
@@ -152,32 +162,40 @@ export default function Dashboard() {
           </p>
         </div>
 
-        {/* S2-03 — Statistieken: totaal, doeldagen, streak */}
-        <div className="grid grid-cols-3 gap-4">
+        {/* Stats */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: 'Totaal stappen', value: formatSteps(stats.totalSteps) },
-            { label: 'Dagen doel gehaald', value: stats.goalDays, highlight: true },
-            { label: 'Streak', value: `🔥 ${stats.streak}` },
-          ].map(({ label, value, highlight }) => (
-            <div key={label} className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 flex flex-col gap-1">
+            {
+              label: 'Dag',
+              value: dag,
+              suffix: '/ 30',
+            },
+            {
+              label: 'Totaal april',
+              value: statsLaden ? '…' : totaalStappen.toLocaleString('nl-NL'),
+              suffix: 'stappen',
+            },
+            {
+              label: 'Doeldagen',
+              value: statsLaden ? '…' : doelDagen,
+              suffix: '≥ 10.000',
+            },
+            {
+              label: 'Streak',
+              value: statsLaden ? '…' : streak,
+              suffix: streak === 1 ? 'dag' : 'dagen',
+              accent: streak >= 3,
+            },
+          ].map(({ label, value, suffix, accent }) => (
+            <div
+              key={label}
+              className={`bg-white/[0.03] border rounded-2xl p-5 flex flex-col gap-1 transition-colors
+                ${accent ? 'border-[#84cc16]/30 bg-[#84cc16]/[0.04]' : 'border-white/5'}`}
+            >
               <span className="text-white/30 text-xs uppercase tracking-widest">{label}</span>
-              <span className={`text-3xl font-black leading-none ${highlight ? 'text-[#84cc16]' : 'text-white'}`}>
+              <span className={`text-3xl font-black leading-none ${accent ? 'text-[#84cc16]' : 'text-white'}`}>
                 {value}
               </span>
-            </div>
-          ))}
-        </div>
-
-        {/* Dag stats */}
-        <div className="grid grid-cols-3 gap-4">
-          {[
-            { label: 'Dag', value: dag, suffix: '/ 30' },
-            { label: 'Vandaag', value: initLaden ? '…' : (stappenVandaag !== null ? stappenVandaag.toLocaleString('nl-NL') : '—'), suffix: 'stappen' },
-            { label: 'Doel', value: '10.000', suffix: 'stappen' },
-          ].map(({ label, value, suffix }) => (
-            <div key={label} className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 flex flex-col gap-1">
-              <span className="text-white/30 text-xs uppercase tracking-widest">{label}</span>
-              <span className="text-white text-3xl font-black leading-none">{value}</span>
               <span className="text-white/20 text-xs">{suffix}</span>
             </div>
           ))}
@@ -246,6 +264,9 @@ export default function Dashboard() {
           )}
         </div>
 
+        {/* Grafiek */}
+        <StappenGrafiek uid={user?.uid} refresh={refreshTrigger} />
+
         {/* Challenge voortgang */}
         <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-6 space-y-3">
           <div className="flex items-center justify-between">
@@ -280,16 +301,6 @@ export default function Dashboard() {
             className="text-xs uppercase tracking-widest border border-white/10 hover:border-[#84cc16]/40 text-white/50 hover:text-white rounded-lg px-4 py-2 transition-colors"
           >
             {user?.teamId ? 'Bekijken' : 'Aansluiten'}
-          </button>
-        </div>
-
-        {/* Profiel knop */}
-        <div className="flex justify-end">
-          <button
-            onClick={() => navigate('/profiel')}
-            className="text-xs uppercase tracking-widest border border-white/10 hover:border-[#84cc16]/40 text-white/50 hover:text-white rounded-lg px-4 py-2 transition-colors"
-          >
-            Profiel
           </button>
         </div>
 
