@@ -111,8 +111,10 @@ export default function Dashboard() {
       {/* Navbar */}
       <header className="border-b border-white/5 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-[#84cc16] text-xl leading-none">⬡</span>
-          <span className="text-white font-bold tracking-widest uppercase text-sm">Stapril</span>
+          <span className="text-lime-400 text-xl leading-none">⬡</span>
+          <span className="font-black tracking-widest uppercase text-sm text-zinc-100">
+            Stap<span className="text-lime-400">ril</span>
+          </span>
         </div>
         <div className="flex items-center gap-4">
           <span className="text-white/40 text-sm hidden sm:block">{user?.email}</span>
