@@ -8,6 +8,7 @@ import { dagVanApril } from '../utils/datum'
 import { laadStappenVandaag, slaStappenOp } from '../utils/stappen'
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '../firebase'
+import { verwerkBadges } from '../hooks/useBadges'
 
 async function laadTeamNaam(teamId) {
   if (!teamId) return null
@@ -70,6 +71,15 @@ export default function Dashboard() {
       setStappenVandaag(aantal)
       setStappenOpgeslagen(true)
       setRefreshTrigger(t => t + 1)
+
+      // Badges verwerken na opslaan stappen
+      const vandaag = new Date().toISOString().split('T')[0]
+      const stepsMap = { [vandaag]: aantal }
+      const nieuweBadges = await verwerkBadges(user.uid, stepsMap)
+      if (nieuweBadges.length > 0) {
+        localStorage.setItem('nieuw_badge', nieuweBadges[0])
+      }
+
       setTimeout(() => setStappenOpgeslagen(false), 3000)
     } catch {
       setStappenFout('Opslaan mislukt. Probeer het opnieuw.')
@@ -102,6 +112,12 @@ export default function Dashboard() {
             </button>
           )}
           <span className="text-white/40 text-sm hidden sm:block">{user?.email}</span>
+          <button
+            onClick={() => navigate('/badges')}
+            className="text-xs uppercase tracking-widest text-[#84cc16]/60 hover:text-[#84cc16] transition-colors border border-[#84cc16]/20 hover:border-[#84cc16]/40 rounded-lg px-3 py-1.5"
+          >
+            Badges
+          </button>
           <button
             onClick={() => navigate('/profiel')}
             className="flex items-center gap-2 bg-[#84cc16]/10 hover:bg-[#84cc16]/20 border border-[#84cc16]/25 hover:border-[#84cc16]/50 text-[#84cc16] text-xs font-bold rounded-xl px-3 py-2 transition-all duration-200"

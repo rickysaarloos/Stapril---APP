@@ -8,8 +8,8 @@ import Dashboard from './pages/Dashboard'
 import AdminPanel from './pages/AdminPanel'
 import Team from './pages/Team'
 import Profiel from './pages/Profiel'
+import BadgesPage from './pages/Badges'
 
-// PublicRoute moet BINNEN AuthProvider staan — daarom als apart component
 function PublicRoute({ children }) {
   const { user, loading } = useAuthContext()
   if (loading) return null
@@ -40,6 +40,10 @@ function AppRoutes() {
 
       <Route path="/profiel" element={
         <ProtectedRoute><Profiel /></ProtectedRoute>
+      } />
+
+      <Route path="/badges" element={
+        <ProtectedRoute><BadgesPage /></ProtectedRoute>
       } />
 
       <Route path="/admin" element={
