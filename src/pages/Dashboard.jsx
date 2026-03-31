@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../context/AuthContext'
 import StappenGrafiek from '../components/StappenGrafiek'
+import Klassement from '../components/Klassement'
 import { useStats } from '../hooks/useStepStats'
 import { dagVanApril } from '../utils/datum'
 import { laadStappenVandaag, slaStappenOp } from '../utils/stappen'
@@ -257,6 +258,9 @@ export default function Dashboard() {
 
         {/* Grafiek */}
         <StappenGrafiek uid={user?.uid} refresh={refreshTrigger} />
+
+        {/* Klassement */}
+        <Klassement />
 
         {/* Challenge voortgang */}
         <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-6 space-y-3">
