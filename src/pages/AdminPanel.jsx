@@ -28,21 +28,24 @@ export default function AdminPanel() {
 
         const gebruikersList = gebruikersSnap.docs.map(d => ({ id: d.id, ...d.data() }))
         const stappen = stappenSnap.docs.map(d => d.data())
+        const vandaag = new Date().toISOString().split('T')[0]
 
-        // Totale stappen per gebruiker
         const stappenPerUid = {}
+        const stappenVandaagPerUid = {}
         stappen.forEach(s => {
           stappenPerUid[s.uid] = (stappenPerUid[s.uid] ?? 0) + (s.stappen ?? 0)
+          if (s.datum === vandaag) {
+            stappenVandaagPerUid[s.uid] = s.stappen ?? 0
+          }
         })
 
-        // Gebruikers verrijken met totale stappen
         const gebruikersMetStappen = gebruikersList.map(g => ({
           ...g,
           totaalStappen: stappenPerUid[g.id] ?? 0,
+          stappenVandaag: stappenVandaagPerUid[g.id] ?? 0,
         }))
         setGebruikers(gebruikersMetStappen)
 
-        // Teams verrijken met leden en stappen
         const teamsList = teamsSnap.docs.map(teamDoc => {
           const team = { id: teamDoc.id, ...teamDoc.data() }
           const leden = gebruikersMetStappen.filter(g => g.teamId === team.id)
@@ -57,7 +60,6 @@ export default function AdminPanel() {
         teamsList.sort((a, b) => b.totaalStappen - a.totaalStappen)
         setTeams(teamsList)
 
-        // Challenge status
         if (challengeSnap.exists()) {
           setChallengeStatus(challengeSnap.data())
         }
@@ -89,7 +91,10 @@ export default function AdminPanel() {
         actief: !actief,
         gewijzigdOp: new Date().toISOString(),
         gewijzigdDoor: user.uid,
-        ...(!actief ? { gestart: new Date().toISOString() } : { beeindigd: new Date().toISOString() }),
+        ...(!actief
+          ? { gestart: new Date().toISOString() }
+          : { beeindigd: new Date().toISOString() }
+        ),
       }
       await setDoc(doc(db, 'instellingen', 'challenge'), nieuweStatus)
       setChallengeStatus(nieuweStatus)
@@ -98,6 +103,28 @@ export default function AdminPanel() {
     } finally {
       setChallengeLaden(false)
     }
+  }
+
+  function handleExport() {
+    const rijen = [
+      ['Naam', 'Email', 'Rol', 'Team', 'Stappen vandaag', 'Totaal stappen'],
+      ...gebruikers.map(g => [
+        g.naam ?? '',
+        g.email ?? '',
+        g.role ?? 'deelnemer',
+        g.teamId ?? '',
+        g.stappenVandaag ?? 0,
+        g.totaalStappen ?? 0,
+      ])
+    ]
+    const csv = rijen.map(r => r.join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `stapril_export_${new Date().toISOString().split('T')[0]}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
   }
 
   async function handleLogout() {
@@ -117,6 +144,12 @@ export default function AdminPanel() {
   const meestActief = [...gebruikers].sort((a, b) => b.totaalStappen - a.totaalStappen)[0]
   const besteTeam = teams[0]
   const challengeActief = challengeStatus?.actief ?? false
+
+  const actieveDeelnemers = gebruikers.filter(g => g.role === 'deelnemer')
+  const dagdoelVandaag = actieveDeelnemers.filter(g => g.stappenVandaag >= 10000)
+  const percentageDagdoel = actieveDeelnemers.length > 0
+    ? Math.round((dagdoelVandaag.length / actieveDeelnemers.length) * 100)
+    : 0
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
@@ -193,7 +226,10 @@ export default function AdminPanel() {
           >
             {challengeLaden && (
               <span className={`w-4 h-4 border-2 rounded-full animate-spin
-                ${challengeActief ? 'border-red-400/20 border-t-red-400' : 'border-black/20 border-t-black/70'}`}
+                ${challengeActief
+                  ? 'border-red-400/20 border-t-red-400'
+                  : 'border-black/20 border-t-black/70'
+                }`}
               />
             )}
             {challengeActief ? 'Challenge beëindigen' : 'Challenge starten'}
@@ -217,8 +253,6 @@ export default function AdminPanel() {
 
         {/* Uitlichting */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-          {/* Meest actieve deelnemer */}
           <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 space-y-2">
             <p className="text-white/30 text-xs uppercase tracking-widest">Meest actief</p>
             {laden ? (
@@ -236,7 +270,6 @@ export default function AdminPanel() {
             )}
           </div>
 
-          {/* Beste team */}
           <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 space-y-2">
             <p className="text-white/30 text-xs uppercase tracking-widest">Beste team</p>
             {laden ? (
@@ -252,6 +285,64 @@ export default function AdminPanel() {
             ) : (
               <p className="text-white/20 text-sm">Nog geen teams</p>
             )}
+          </div>
+        </div>
+
+        {/* Statistieken */}
+        <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-6 space-y-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-white font-bold">Statistieken vandaag</h2>
+            <button
+              onClick={handleExport}
+              className="text-xs uppercase tracking-widest text-white/40 hover:text-white border border-white/10 hover:border-white/30 rounded-lg px-3 py-1.5 transition-colors"
+            >
+              Exporteren CSV
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-white/50">Dagdoel gehaald vandaag</span>
+              <span className="text-white font-bold">{laden ? '…' : `${percentageDagdoel}%`}</span>
+            </div>
+            <div className="w-full bg-white/5 rounded-full h-2">
+              <div
+                className="bg-[#84cc16] h-2 rounded-full transition-all duration-500"
+                style={{ width: laden ? '0%' : `${percentageDagdoel}%` }}
+              />
+            </div>
+            <p className="text-white/20 text-xs">
+              {laden ? '…' : `${dagdoelVandaag.length} van ${actieveDeelnemers.length} deelnemers`}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            {[
+              {
+                label: 'Gem. stappen vandaag',
+                value: laden ? '…' : actieveDeelnemers.length > 0
+                  ? Math.round(
+                      actieveDeelnemers.reduce((sum, g) => sum + g.stappenVandaag, 0) /
+                      actieveDeelnemers.length
+                    ).toLocaleString('nl-NL')
+                  : '—'
+              },
+              {
+                label: 'Totaal stappen ooit',
+                value: laden ? '…' : gebruikers
+                  .reduce((sum, g) => sum + g.totaalStappen, 0)
+                  .toLocaleString('nl-NL')
+              },
+              {
+                label: 'Invoer vandaag',
+                value: laden ? '…' : actieveDeelnemers.filter(g => g.stappenVandaag > 0).length
+              },
+            ].map(({ label, value }) => (
+              <div key={label} className="bg-white/[0.03] border border-white/5 rounded-xl p-4 space-y-1">
+                <p className="text-white/30 text-xs uppercase tracking-widest">{label}</p>
+                <p className="text-white font-black text-xl">{value}</p>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -276,7 +367,9 @@ export default function AdminPanel() {
                     </span>
                     <div className="min-w-0">
                       <p className="text-white text-sm font-medium truncate">{team.naam}</p>
-                      <p className="text-white/30 text-xs">{team.aantalLeden} leden · code: {team.joinCode}</p>
+                      <p className="text-white/30 text-xs">
+                        {team.aantalLeden} leden · code: {team.joinCode}
+                      </p>
                     </div>
                   </div>
                   <p className="text-[#84cc16] text-sm font-black shrink-0">
@@ -315,7 +408,8 @@ export default function AdminPanel() {
                     <p className="text-white text-sm font-medium truncate">{g.naam || '—'}</p>
                     <p className="text-white/30 text-xs truncate">{g.email}</p>
                     <p className="text-white/20 text-xs mt-0.5">
-                      {g.totaalStappen?.toLocaleString('nl-NL') ?? 0} stappen totaal
+                      {g.stappenVandaag?.toLocaleString('nl-NL') ?? 0} vandaag ·{' '}
+                      {g.totaalStappen?.toLocaleString('nl-NL') ?? 0} totaal
                       {g.teamId && ` · team: ${g.teamId}`}
                     </p>
                   </div>
