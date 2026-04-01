@@ -155,30 +155,29 @@ export default function AdminPanel() {
     <div className="min-h-screen bg-[#0a0a0a] text-white">
 
       {/* Navbar */}
-      <header className="border-b border-white/5 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="text-[#84cc16] text-xl leading-none">⬡</span>
-          <span className="text-white font-bold tracking-widest uppercase text-sm">Stapril</span>
-          <span className="text-[#84cc16] text-xs border border-[#84cc16]/30 rounded px-2 py-0.5 tracking-widest uppercase">
-            Admin
-          </span>
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="text-white/40 text-sm hidden sm:block">{user?.email}</span>
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-3 py-1.5"
-          >
-            Dashboard
-          </button>
-          <button
-            onClick={handleLogout}
-            className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-3 py-1.5"
-          >
-            Uitloggen
-          </button>
-        </div>
-      </header>
+     <header className="border-b border-white/5 px-4 py-3 flex items-center justify-between gap-2">
+  <div className="flex items-center gap-2 shrink-0">
+    <span className="text-[#84cc16] text-xl leading-none">⬡</span>
+    <span className="text-white font-bold tracking-widest uppercase text-sm">Stapril</span>
+    <span className="text-[#84cc16] text-xs border border-[#84cc16]/30 rounded px-2 py-0.5 tracking-widest uppercase hidden sm:block">
+      Admin
+    </span>
+  </div>
+  <div className="flex items-center gap-2 shrink-0">
+    <button
+      onClick={() => navigate('/dashboard')}
+      className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-2.5 py-1.5"
+    >
+      Dashboard
+    </button>
+    <button
+      onClick={handleLogout}
+      className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-2.5 py-1.5"
+    >
+      Uitloggen
+    </button>
+  </div>
+</header>
 
       <main className="max-w-5xl mx-auto px-6 py-12 space-y-8">
 
