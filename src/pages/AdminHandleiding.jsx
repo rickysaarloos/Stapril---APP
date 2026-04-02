@@ -142,7 +142,7 @@ export default function AdminHandleiding() {
           ← Terug naar admin panel
         </button>
 
-      </main>
+      </main>            
     </div>
   )
 }
