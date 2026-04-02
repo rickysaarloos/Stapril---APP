@@ -43,11 +43,6 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
-
-        // Zorgt dat iOS offline naar index.html valt
-        navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/api/],
-
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/firestore\.googleapis\.com\/.*/i,
@@ -55,11 +50,7 @@ export default defineConfig({
             options: {
               cacheName: 'firebase-cache',
               networkTimeoutSeconds: 5,
-              cacheableResponse: { statuses: [0, 200] },
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24
-              }
+              cacheableResponse: { statuses: [0, 200] }
             }
           },
           {
@@ -67,23 +58,7 @@ export default defineConfig({
             handler: 'NetworkFirst',
             options: {
               cacheName: 'firebase-auth-cache',
-              cacheableResponse: { statuses: [0, 200] },
-              expiration: {
-                maxEntries: 20,
-                maxAgeSeconds: 60 * 60 * 24
-              }
-            }
-          },
-          {
-            urlPattern: /^https:\/\/identitytoolkit\.googleapis\.com\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'firebase-auth-cache',
-              cacheableResponse: { statuses: [0, 200] },
-              expiration: {
-                maxEntries: 20,
-                maxAgeSeconds: 60 * 60 * 24
-              }
+              cacheableResponse: { statuses: [0, 200] }
             }
           }
         ]

@@ -9,10 +9,6 @@ export async function laadStappenVandaag(uid) {
 }
 
 export async function slaStappenOp(uid, stappen) {
-  if (!navigator.onLine) {
-    throw new Error('Geen internetverbinding.')
-  }
-
   const datum = vandaagISO()
   const id = stappenDocId(uid, datum)
 
