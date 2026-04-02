@@ -1,51 +1,50 @@
-import { useEffect, useState } from 'react' // React hooks voor state en lifecycle
-import { collection, query, where, getDocs } from 'firebase/firestore' // Firestore functies
-import { db } from '../firebase' // Jouw Firestore database instance
+import { useEffect, useState } from 'react'
+import { collection, query, where, getDocs } from 'firebase/firestore'
+import { db } from '../firebase'
 
-export function useStappenGrafiek(uid, refresh = 0) { // Custom hook voor stappen grafiek
-  const [data, setData] = useState([]) // State voor grafiekdata per dag
-  const [laden, setLaden] = useState(true) // Loading state
+export function useStappenGrafiek(uid, refresh = 0) {
+  const [data, setData] = useState([])
+  const [laden, setLaden] = useState(true)
 
-  useEffect(() => { // Hook die wordt uitgevoerd bij mount of bij veranderingen in uid/refresh
-    if (!uid) return // Stop als geen gebruiker
+  useEffect(() => {
+    if (!uid) return
 
-    async function laad() { // Functie om stappen op te halen
+    async function laad() {
       try {
-        const q = query(collection(db, 'stappen'), where('uid', '==', uid)) // Query naar stappen van deze user
-        const snap = await getDocs(q) // Haal documenten op
+        const q = query(collection(db, 'stappen'), where('uid', '==', uid))
+        const snap = await getDocs(q)
 
-        const map = {} // Maak map datum → stappen
+        const map = {}
         snap.forEach(doc => {
-          const { datum, stappen } = doc.data() // Haal datum en stappen op
-          map[datum] = stappen // Sla op in map
+          const { datum, stappen } = doc.data()
+          map[datum] = stappen
         })
 
         const nu = new Date()
         const jaar = nu.getFullYear()
-        const maand = nu.getMonth() // Maand (0-11)
-        const aantalDagen = new Date(jaar, maand + 1, 0).getDate() // Aantal dagen in deze maand
+        const maand = nu.getMonth()
+        const aantalDagen = new Date(jaar, maand + 1, 0).getDate()
 
-        // Maak array van alle dagen van de maand
         const dagen = Array.from({ length: aantalDagen }, (_, i) => {
           const dag = i + 1
-          const datum = `${jaar}-${String(maand + 1).padStart(2, '0')}-${String(dag).padStart(2, '0')}` // Formatteer datum
+          const datum = `${jaar}-${String(maand + 1).padStart(2, '0')}-${String(dag).padStart(2, '0')}`
           return {
-            dag, // Dagnummer
-            datum, // Datum string
-            stappen: map[datum] ?? null, // Stappen of null als niet ingevoerd
+            dag,
+            datum,
+            stappen: map[datum] ?? null,
           }
         })
 
-        setData(dagen) // Update state met alle dagen
+        setData(dagen)
       } catch (e) {
-        console.error(e) // Log eventuele fouten
+        console.error(e)
       } finally {
-        setLaden(false) // Laden klaar
+        setLaden(false)
       }
     }
 
-    laad() // Voer de laadfunctie uit
-  }, [uid, refresh]) // Herlaad als uid of refresh verandert
+    laad()
+  }, [uid, refresh])
 
-  return { data, laden } // Geef data en loading state terug
+  return { data, laden }
 }

@@ -1,107 +1,94 @@
-import { useState } from 'react' // useState wordt gebruikt om interne state bij te houden, zoals formulierwaarden
+import { useState } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import { useAuthContext } from '../context/AuthContext'
 
-import { useNavigate, Link } from 'react-router-dom' // useNavigate voor programmatic navigation, Link voor interne navigatie links
-
-import { useAuthContext } from '../context/AuthContext' // custom hook om auth functies te gebruiken, zoals registreer en ingelogde gebruiker ophalen
-
-// Validatie object voor alle velden
 const validate = {
-  naam(v) { // functie om naam te valideren
-    if (!v.trim()) return 'Vul je naam in' // checkt of veld leeg is
-    return null // geen fout
+  naam(v) {
+    if (!v.trim()) return 'Vul je naam in'
+    return null
   },
-  email(v) { // functie om e-mail te valideren
-    if (!v.trim()) return 'Vul je e-mailadres in' // check leeg
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return 'Ongeldig e-mailadres' // regex check
-    return null // geen fout
+  email(v) {
+    if (!v.trim()) return 'Vul je e-mailadres in'
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return 'Ongeldig e-mailadres'
+    return null
   },
-  password(v) { // functie om wachtwoord te valideren
-    if (v.length < 8) return 'Minimaal 8 tekens' // minimaal 8 tekens
-    if (!/[A-Z]/.test(v)) return 'Minimaal één hoofdletter' // minimaal 1 hoofdletter
-    if (!/[0-9]/.test(v)) return 'Minimaal één cijfer' // minimaal 1 cijfer
-    return null // geen fout
+  password(v) {
+    if (v.length < 8) return 'Minimaal 8 tekens'
+    if (!/[A-Z]/.test(v)) return 'Minimaal één hoofdletter'
+    if (!/[0-9]/.test(v)) return 'Minimaal één cijfer'
+    return null
   },
 }
 
-// Hoofdcomponent voor registratiepagina
 export default function RegisterPage() {
-  const navigate = useNavigate() // functie om programmatic naar een andere pagina te navigeren
-  const { registreer } = useAuthContext() // registreer functie uit auth context
+  const navigate = useNavigate()
+  const { registreer } = useAuthContext()
 
-  // state variabelen
-  const [fields, setFields] = useState({ naam: '', email: '', password: '' }) // houdt de invoer van de gebruiker bij
-  const [errors, setErrors] = useState({}) // houdt validatiefouten per veld bij
-  const [touched, setTouched] = useState({}) // trackt welke velden al zijn aangeraakt
-  const [firebaseError, setFirebaseError] = useState(null) // foutmelding van Firebase
-  const [submitting, setSubmitting] = useState(false) // of het formulier bezig is met verzenden
+  const [fields, setFields] = useState({ naam: '', email: '', password: '' })
+  const [errors, setErrors] = useState({})
+  const [touched, setTouched] = useState({})
+  const [firebaseError, setFirebaseError] = useState(null)
+  const [submitting, setSubmitting] = useState(false)
 
-  // handler voor verandering in een veld
   const handleChange = (field) => (e) => {
-    const value = e.target.value // haalt de nieuwe waarde op
-    setFields((prev) => ({ ...prev, [field]: value })) // update de juiste veldwaarde in state
-    if (touched[field]) { // als veld al is aangeraakt
-      setErrors((prev) => ({ ...prev, [field]: validate[field](value) })) // valideer live
+    const value = e.target.value
+    setFields((prev) => ({ ...prev, [field]: value }))
+    if (touched[field]) {
+      setErrors((prev) => ({ ...prev, [field]: validate[field](value) }))
     }
   }
 
-  // handler voor blur (veld verlaten)
   const handleBlur = (field) => () => {
-    setTouched((prev) => ({ ...prev, [field]: true })) // markeer veld als aangeraakt
-    setErrors((prev) => ({ ...prev, [field]: validate[field](fields[field]) })) // voer validatie uit
+    setTouched((prev) => ({ ...prev, [field]: true }))
+    setErrors((prev) => ({ ...prev, [field]: validate[field](fields[field]) }))
   }
 
-  // handler bij formulier submit
   const handleSubmit = async (e) => {
-    e.preventDefault() // voorkom default reload
-    setFirebaseError(null) // reset eventuele vorige Firebase fout
+    e.preventDefault()
+    setFirebaseError(null)
 
-    // valideer alle velden
     const newErrors = {
-      naam: validate.naam(fields.naam), // valideer naam
-      email: validate.email(fields.email), // valideer email
-      password: validate.password(fields.password), // valideer password
+      naam: validate.naam(fields.naam),
+      email: validate.email(fields.email),
+      password: validate.password(fields.password),
     }
-    setErrors(newErrors) // update errors state
-    setTouched({ naam: true, email: true, password: true }) // markeer alles als aangeraakt
+    setErrors(newErrors)
+    setTouched({ naam: true, email: true, password: true })
+    if (Object.values(newErrors).some(Boolean)) return
 
-    if (Object.values(newErrors).some(Boolean)) return // stop als er fouten zijn
-
-    setSubmitting(true) // zet submitting state aan (disable button / toon loader)
+    setSubmitting(true)
 
     try {
-      // probeer gebruiker te registreren via auth context
-      await registreer(fields.naam.trim(), fields.email.trim(), fields.password) 
-      navigate('/dashboard') // navigeer naar dashboard bij succes
-    } catch (err) { // bij fout
-      if (err.code === 'auth/email-already-in-use') { // specifiek foutcode
-        setFirebaseError('Dit e-mailadres is al in gebruik.') // toon foutmelding
+      await registreer(fields.naam.trim(), fields.email.trim(), fields.password)
+      navigate('/dashboard')
+    } catch (err) {
+      if (err.code === 'auth/email-already-in-use') {
+        setFirebaseError('Dit e-mailadres is al in gebruik.')
       } else {
-        setFirebaseError('Er ging iets mis. Probeer het opnieuw.') // algemene foutmelding
+        setFirebaseError('Er ging iets mis. Probeer het opnieuw.')
       }
     } finally {
-      setSubmitting(false) // reset submitting status
+      setSubmitting(false)
     }
   }
 
-  // JSX
   return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-4 py-10 relative overflow-x-hidden">
-      {/* Achtergrond decoratieve cirkels */}
+
       <div className="pointer-events-none fixed inset-0 z-0">
         <div className="absolute top-0 left-0 w-[500px] h-[400px] bg-lime-400 opacity-[0.04] rounded-full blur-3xl" />
         <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-lime-400 opacity-[0.03] rounded-full blur-3xl" />
       </div>
 
-      {/* Container voor inhoud */}
       <div className="relative z-10 w-full max-w-md animate-[fadeUp_0.45s_ease_both]">
 
-        {/* Logo / merk */}
+        {/* Brand */}
         <div className="flex items-center gap-3 mb-8">
           <div className="w-11 h-11 bg-lime-400 rounded-xl flex items-center justify-center text-zinc-950 shrink-0">
-            <FootstepsIcon /> {/* icoon */}
+            <FootstepsIcon />
           </div>
           <span className="font-black text-3xl tracking-widest text-zinc-100 uppercase">
-            Stap<span className="text-lime-400">ril</span> {/* merknaam */}
+            Stap<span className="text-lime-400">ril</span>
           </span>
         </div>
 
@@ -115,10 +102,9 @@ export default function RegisterPage() {
           </p>
         </div>
 
-        {/* Kaart met formulier */}
+        {/* Card */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-7">
 
-          {/* Firebase foutmelding */}
           {firebaseError && (
             <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm mb-5">
               <AlertIcon />
@@ -126,10 +112,8 @@ export default function RegisterPage() {
             </div>
           )}
 
-          {/* Formulier */}
           <form onSubmit={handleSubmit} noValidate className="space-y-5">
 
-            {/* Naam veld */}
             <Field
               label="Naam"
               id="naam"
@@ -142,7 +126,6 @@ export default function RegisterPage() {
               onBlur={handleBlur('naam')}
             />
 
-            {/* Email veld */}
             <Field
               label="E-mailadres"
               id="email"
@@ -155,7 +138,6 @@ export default function RegisterPage() {
               onBlur={handleBlur('email')}
             />
 
-            {/* Wachtwoord veld */}
             <Field
               label="Wachtwoord"
               id="password"
@@ -168,13 +150,12 @@ export default function RegisterPage() {
               onBlur={handleBlur('password')}
             />
 
-            {/* Submit button */}
             <button
               type="submit"
-              disabled={submitting} // disable button tijdens submit
+              disabled={submitting}
               className="w-full mt-1 bg-lime-400 hover:bg-lime-300 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed text-zinc-950 font-black text-sm uppercase tracking-widest rounded-xl py-3.5 flex items-center justify-center transition-all duration-150 min-h-[48px]"
             >
-              {submitting ? ( // toon loader als submitting
+              {submitting ? (
                 <span className="w-5 h-5 border-2 border-zinc-950 border-t-transparent rounded-full animate-spin" />
               ) : (
                 'Registreren →'
@@ -182,7 +163,6 @@ export default function RegisterPage() {
             </button>
           </form>
 
-          {/* Link naar login pagina */}
           <p className="text-center mt-5 text-sm text-zinc-500">
             Al een account?{' '}
             <Link to="/login" className="text-lime-400 font-semibold hover:opacity-75 transition-opacity">
@@ -199,7 +179,6 @@ export default function RegisterPage() {
         </div>
       </div>
 
-      {/* Animatie voor fade up */}
       <style>{`
         @keyframes fadeUp {
           from { opacity: 0; transform: translateY(16px); }
@@ -210,19 +189,18 @@ export default function RegisterPage() {
   )
 }
 
-// Component voor individuele input velden
 function Field({ label, id, type, value, placeholder, error, icon, onChange, onBlur }) {
   return (
     <div>
       <label htmlFor={id} className="block text-xs font-semibold uppercase tracking-widest text-zinc-500 mb-1.5">
-        {label} {/* veldlabel */}
+        {label}
       </label>
       <div className={`relative flex items-center rounded-xl border bg-zinc-950 transition-all ${
         error
-          ? 'border-red-500 ring-2 ring-red-500/20' // rode rand bij fout
+          ? 'border-red-500 ring-2 ring-red-500/20'
           : 'border-zinc-800 focus-within:border-lime-400 focus-within:ring-2 focus-within:ring-lime-400/20'
       }`}>
-        <span className="absolute left-3.5 text-zinc-600 pointer-events-none">{icon}</span> {/* icoon */}
+        <span className="absolute left-3.5 text-zinc-600 pointer-events-none">{icon}</span>
         <input
           id={id}
           type={type}
@@ -233,11 +211,55 @@ function Field({ label, id, type, value, placeholder, error, icon, onChange, onB
           onBlur={onBlur}
         />
       </div>
-      {error && ( // toon foutmelding
+      {error && (
         <p className="flex items-center gap-1.5 mt-1.5 text-xs text-red-400">
           <AlertIcon /> {error}
         </p>
       )}
     </div>
+  )
+}
+
+function FootstepsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" width="22" height="22">
+      <circle cx="10" cy="5" r="2" fill="currentColor"/>
+      <path d="M7 8l1 5h4l1-5H7z" fill="currentColor"/>
+      <path d="M6 13l1 6h5l1-6H6z" fill="currentColor" opacity=".6"/>
+      <circle cx="16" cy="9" r="2" fill="currentColor"/>
+      <path d="M13 12l1 5h4l1-5h-6z" fill="currentColor"/>
+    </svg>
+  )
+}
+function UserIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" width="16" height="16" stroke="currentColor" strokeWidth="1.5">
+      <circle cx="8" cy="5" r="3" />
+      <path d="M2 14c0-3 12-3 12 0" />
+    </svg>
+  )
+}
+function MailIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" width="16" height="16" stroke="currentColor" strokeWidth="1.5">
+      <rect x="1" y="3" width="14" height="10" rx="2"/>
+      <path d="M1 5l7 5 7-5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+function LockIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" width="16" height="16" stroke="currentColor" strokeWidth="1.5">
+      <rect x="3" y="7" width="10" height="7" rx="1.5"/>
+      <path d="M5 7V5a3 3 0 016 0v2" strokeLinecap="round"/>
+    </svg>
+  )
+}
+function AlertIcon() {
+  return (
+    <svg viewBox="0 0 12 12" fill="none" width="12" height="12" className="shrink-0">
+      <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5"/>
+      <path d="M6 4v3M6 8.5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    </svg>
   )
 }

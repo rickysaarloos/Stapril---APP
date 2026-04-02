@@ -2,9 +2,6 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuthContext } from '../context/AuthContext'
 
-/* -------------------------
-  Validatie functies
-------------------------- */
 const validate = {
   email(v) {
     if (!v.trim()) return 'Vul je e-mailadres in'
@@ -17,16 +14,10 @@ const validate = {
   },
 }
 
-/* -------------------------
-  Hoofdcomponent
-------------------------- */
 export default function LoginPage() {
   const navigate = useNavigate()
-  const { login } = useAuthContext()  // Login functie van context
+  const { login } = useAuthContext()
 
-  /* -------------------------
-    State hooks
-  ------------------------- */
   const [fields, setFields] = useState({ email: '', password: '' })
   const [errors, setErrors] = useState({})
   const [touched, setTouched] = useState({})
@@ -34,23 +25,19 @@ export default function LoginPage() {
   const [firebaseError, setFirebaseError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
-  /* -------------------------
-    Input handlers
-  ------------------------- */
   const handleChange = (field) => (e) => {
     const value = e.target.value
-    setFields(prev => ({ ...prev, [field]: value }))
-    if (touched[field]) setErrors(prev => ({ ...prev, [field]: validate[field](value) }))
+    setFields((prev) => ({ ...prev, [field]: value }))
+    if (touched[field]) {
+      setErrors((prev) => ({ ...prev, [field]: validate[field](value) }))
+    }
   }
 
   const handleBlur = (field) => () => {
-    setTouched(prev => ({ ...prev, [field]: true }))
-    setErrors(prev => ({ ...prev, [field]: validate[field](fields[field]) }))
+    setTouched((prev) => ({ ...prev, [field]: true }))
+    setErrors((prev) => ({ ...prev, [field]: validate[field](fields[field]) }))
   }
 
-  /* -------------------------
-    Form submit
-  ------------------------- */
   const handleSubmit = async (e) => {
     e.preventDefault()
     setFirebaseError(null)
@@ -61,10 +48,10 @@ export default function LoginPage() {
     }
     setErrors(newErrors)
     setTouched({ email: true, password: true })
-
     if (Object.values(newErrors).some(Boolean)) return
 
     setSubmitting(true)
+
     try {
       await login(fields.email.trim(), fields.password)
       navigate('/dashboard')
@@ -83,22 +70,17 @@ export default function LoginPage() {
     }
   }
 
-  /* -------------------------
-    JSX
-  ------------------------- */
   return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-4 py-10 relative overflow-x-hidden">
 
-      {/* Achtergrond blobs */}
       <div className="pointer-events-none fixed inset-0 z-0">
         <div className="absolute top-0 left-0 w-[500px] h-[400px] bg-lime-400 opacity-[0.04] rounded-full blur-3xl" />
         <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-lime-400 opacity-[0.03] rounded-full blur-3xl" />
       </div>
 
-      {/* Card */}
       <div className="relative z-10 w-full max-w-md animate-[fadeUp_0.45s_ease_both]">
 
-        {/* Logo */}
+        {/* Brand */}
         <div className="flex items-center gap-3 mb-8">
           <div className="w-11 h-11 bg-lime-400 rounded-xl flex items-center justify-center text-zinc-950 shrink-0">
             <FootstepsIcon />
@@ -109,10 +91,16 @@ export default function LoginPage() {
         </div>
 
         {/* Heading */}
-        <h1 className="text-4xl font-black text-zinc-100 mb-2">Welkom <span className="text-lime-400">terug</span></h1>
-        <p className="text-zinc-500 text-sm mb-5">Log in en ga verder met je stappenchallenge.</p>
+        <div className="mb-7">
+          <h1 className="text-4xl font-black tracking-tight text-zinc-100 leading-tight">
+            Welkom <span className="text-lime-400">terug</span>
+          </h1>
+          <p className="mt-2 text-zinc-500 text-sm leading-relaxed">
+            Log in en ga verder met je stappenchallenge.
+          </p>
+        </div>
 
-        {/* Card Form */}
+        {/* Card */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-7">
 
           {/* Firebase foutmelding */}
@@ -149,7 +137,9 @@ export default function LoginPage() {
                   ? 'border-red-500 ring-2 ring-red-500/20'
                   : 'border-zinc-800 focus-within:border-lime-400 focus-within:ring-2 focus-within:ring-lime-400/20'
               }`}>
-                <span className="absolute left-3.5 text-zinc-600 pointer-events-none"><LockIcon /></span>
+                <span className="absolute left-3.5 text-zinc-600 pointer-events-none">
+                  <LockIcon />
+                </span>
                 <input
                   id="password"
                   type={showPw ? 'text' : 'password'}
@@ -163,7 +153,8 @@ export default function LoginPage() {
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPw(v => !v)}
+                  onClick={() => setShowPw((v) => !v)}
+                  aria-label={showPw ? 'Wachtwoord verbergen' : 'Wachtwoord tonen'}
                   className="absolute right-3.5 text-zinc-600 hover:text-zinc-300 transition-colors"
                 >
                   {showPw ? <EyeOffIcon /> : <EyeIcon />}
@@ -184,13 +175,25 @@ export default function LoginPage() {
             >
               {submitting ? (
                 <span className="w-5 h-5 border-2 border-zinc-950 border-t-transparent rounded-full animate-spin" />
-              ) : 'Inloggen →'}
+              ) : (
+                'Inloggen →'
+              )}
             </button>
           </form>
 
           <p className="text-center mt-5 text-sm text-zinc-500">
-            Nog geen account? <Link to="/register" className="text-lime-400 font-semibold hover:opacity-75 transition-opacity">Registreren</Link>
+            Nog geen account?{' '}
+            <Link to="/register" className="text-lime-400 font-semibold hover:opacity-75 transition-opacity">
+              Registreren
+            </Link>
           </p>
+        </div>
+
+        {/* Voortgangspunten */}
+        <div className="flex gap-1.5 justify-center mt-5">
+          <span className="w-2 h-2 rounded-full bg-zinc-700" />
+          <span className="w-2 h-2 rounded-full bg-lime-400 scale-125" />
+          <span className="w-2 h-2 rounded-full bg-zinc-700" />
         </div>
       </div>
 
@@ -204,16 +207,16 @@ export default function LoginPage() {
   )
 }
 
-/* -------------------------
-  Herbruikbaar Field component
-------------------------- */
 function Field({ label, id, type, value, placeholder, autoComplete, error, icon, onChange, onBlur }) {
   return (
     <div>
-      <label htmlFor={id} className="block text-xs font-semibold uppercase tracking-widest text-zinc-500 mb-1.5">{label}</label>
+      <label htmlFor={id} className="block text-xs font-semibold uppercase tracking-widest text-zinc-500 mb-1.5">
+        {label}
+      </label>
       <div className={`relative flex items-center rounded-xl border bg-zinc-950 transition-all ${
-        error ? 'border-red-500 ring-2 ring-red-500/20'
-              : 'border-zinc-800 focus-within:border-lime-400 focus-within:ring-2 focus-within:ring-lime-400/20'
+        error
+          ? 'border-red-500 ring-2 ring-red-500/20'
+          : 'border-zinc-800 focus-within:border-lime-400 focus-within:ring-2 focus-within:ring-lime-400/20'
       }`}>
         <span className="absolute left-3.5 text-zinc-600 pointer-events-none">{icon}</span>
         <input
@@ -225,11 +228,12 @@ function Field({ label, id, type, value, placeholder, autoComplete, error, icon,
           className="w-full bg-transparent text-zinc-100 text-sm pl-10 pr-4 py-3 outline-none placeholder:text-zinc-700 rounded-xl"
           onChange={onChange}
           onBlur={onBlur}
+          aria-describedby={error ? `err-${id}` : undefined}
           aria-invalid={!!error}
         />
       </div>
       {error && (
-        <p className="flex items-center gap-1.5 mt-1.5 text-xs text-red-400" role="alert">
+        <p id={`err-${id}`} className="flex items-center gap-1.5 mt-1.5 text-xs text-red-400" role="alert">
           <AlertIcon /> {error}
         </p>
       )}
@@ -237,12 +241,54 @@ function Field({ label, id, type, value, placeholder, autoComplete, error, icon,
   )
 }
 
-/* -------------------------
-  Icon componenten
-------------------------- */
-function FootstepsIcon() { return <svg viewBox="0 0 24 24" fill="none" width="22" height="22"><circle cx="10" cy="5" r="2" fill="currentColor"/><path d="M7 8l1 5h4l1-5H7z" fill="currentColor"/><path d="M6 13l1 6h5l1-6H6z" fill="currentColor" opacity=".6"/><circle cx="16" cy="9" r="2" fill="currentColor"/><path d="M13 12l1 5h4l1-5h-6z" fill="currentColor"/></svg> }
-function MailIcon() { return <svg viewBox="0 0 16 16" fill="none" width="16" height="16" stroke="currentColor" strokeWidth="1.5"><rect x="1" y="3" width="14" height="10" rx="2"/><path d="M1 5l7 5 7-5" strokeLinecap="round" strokeLinejoin="round"/></svg> }
-function LockIcon() { return <svg viewBox="0 0 16 16" fill="none" width="16" height="16" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5 7V5a3 3 0 016 0v2" strokeLinecap="round"/></svg> }
-function EyeIcon() { return <svg viewBox="0 0 16 16" fill="none" width="16" height="16" stroke="currentColor" strokeWidth="1.5"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" strokeLinecap="round"/><circle cx="8" cy="8" r="2"/></svg> }
-function EyeOffIcon() { return <svg viewBox="0 0 16 16" fill="none" width="16" height="16" stroke="currentColor" strokeWidth="1.5"><path d="M2 2l12 12M6.5 6.6A3 3 0 0011.4 11" strokeLinecap="round"/><path d="M1 8s2.5-5 7-5c1.2 0 2.3.3 3.3.8M15 8s-.8 1.5-2.3 2.8" strokeLinecap="round"/></svg> }
-function AlertIcon() { return <svg viewBox="0 0 12 12" fill="none" width="12" height="12" className="shrink-0"><circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5"/><path d="M6 4v3M6 8.5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> }
+function FootstepsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" width="22" height="22">
+      <circle cx="10" cy="5" r="2" fill="currentColor"/>
+      <path d="M7 8l1 5h4l1-5H7z" fill="currentColor"/>
+      <path d="M6 13l1 6h5l1-6H6z" fill="currentColor" opacity=".6"/>
+      <circle cx="16" cy="9" r="2" fill="currentColor"/>
+      <path d="M13 12l1 5h4l1-5h-6z" fill="currentColor"/>
+    </svg>
+  )
+}
+function MailIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" width="16" height="16" stroke="currentColor" strokeWidth="1.5">
+      <rect x="1" y="3" width="14" height="10" rx="2"/>
+      <path d="M1 5l7 5 7-5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+function LockIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" width="16" height="16" stroke="currentColor" strokeWidth="1.5">
+      <rect x="3" y="7" width="10" height="7" rx="1.5"/>
+      <path d="M5 7V5a3 3 0 016 0v2" strokeLinecap="round"/>
+    </svg>
+  )
+}
+function EyeIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" width="16" height="16" stroke="currentColor" strokeWidth="1.5">
+      <path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" strokeLinecap="round"/>
+      <circle cx="8" cy="8" r="2"/>
+    </svg>
+  )
+}
+function EyeOffIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" width="16" height="16" stroke="currentColor" strokeWidth="1.5">
+      <path d="M2 2l12 12M6.5 6.6A3 3 0 0011.4 11" strokeLinecap="round"/>
+      <path d="M1 8s2.5-5 7-5c1.2 0 2.3.3 3.3.8M15 8s-.8 1.5-2.3 2.8" strokeLinecap="round"/>
+    </svg>
+  )
+}
+function AlertIcon() {
+  return (
+    <svg viewBox="0 0 12 12" fill="none" width="12" height="12" className="shrink-0">
+      <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5"/>
+      <path d="M6 4v3M6 8.5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    </svg>
+  )
+}

@@ -11,10 +11,13 @@ export default function Team() {
   const [scherm, setScherm] = useState('keuze')
   const [laden, setLaden] = useState(false)
   const [fout, setFout] = useState('')
+
   const [code, setCode] = useState('')
   const [gevondenTeam, setGevondenTeam] = useState(null)
   const [teamnaam, setTeamnaam] = useState('')
   const [nieuwTeam, setNieuwTeam] = useState(null)
+
+  // ── Team details state (voor bestaande teamleden) ──────────
   const [teamDetails, setTeamDetails] = useState(null)
   const [detailLaden, setDetailLaden] = useState(false)
   const [verlatenLaden, setVerlatenLaden] = useState(false)
@@ -95,7 +98,11 @@ export default function Team() {
 
   // ── Subcomponents ──────────────────────────────────────────
   const BackButton = ({ onClick }) => (
-    <button type="button" onClick={onClick} className="w-full text-white/30 hover:text-white/60 text-sm font-medium py-2 transition-colors duration-200">
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full text-white/30 hover:text-white/60 text-sm font-medium py-2 transition-colors duration-200"
+    >
       ← Terug
     </button>
   )
@@ -135,15 +142,20 @@ export default function Team() {
     </p>
   ) : null
 
-  // ── Render logica ──
+  // ── Al in een team → team details pagina ──────────────────
   if (user?.teamId) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-6">
         <div className="fixed inset-0 pointer-events-none">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-[#84cc16]/5 rounded-full blur-3xl" />
         </div>
+
         <div className="relative w-full max-w-sm space-y-3">
+
+          {/* Hoofdkaart */}
           <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-8 space-y-6 backdrop-blur-sm">
+
+            {/* Header */}
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-[#84cc16]/10 border border-[#84cc16]/20 flex items-center justify-center">
                 <span className="text-[#84cc16] text-lg">⬡</span>
@@ -156,6 +168,7 @@ export default function Team() {
               </div>
             </div>
 
+            {/* Join-code */}
             {teamDetails?.joinCode && (
               <div className="bg-white/[0.03] border border-white/10 rounded-xl py-3 px-4">
                 <p className="text-white/30 text-xs uppercase tracking-widest mb-1">Join-code</p>
@@ -165,6 +178,7 @@ export default function Team() {
               </div>
             )}
 
+            {/* Leden */}
             <div className="space-y-2">
               <p className="text-white/30 text-xs uppercase tracking-widest">
                 Leden ({detailLaden ? '…' : (teamDetails?.leden?.length ?? '?')})
@@ -192,6 +206,7 @@ export default function Team() {
             </div>
           </div>
 
+          {/* Acties */}
           <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4 space-y-2 backdrop-blur-sm">
             <button
               onClick={() => navigate('/dashboard')}
@@ -275,8 +290,108 @@ export default function Team() {
             </div>
           )}
 
-          {/* Hier volgen de andere schermen: aanmaken, aansluiten, bevestigen, succes-aangemaakt, succes-aangesloten */}
-          {/* Zie de eerdere code, exact dezelfde structuur, met TextInput, ErrorMsg, PrimaryButton, BackButton */}
+          {/* AANMAKEN */}
+          {scherm === 'aanmaken' && (
+            <form onSubmit={handleTeamAanmaken} className="space-y-5">
+              <div className="space-y-1">
+                <h2 className="text-white text-xl font-bold tracking-tight">Team aanmaken</h2>
+                <p className="text-white/35 text-sm">Geef je team een naam.</p>
+              </div>
+              <div className="space-y-3">
+                <TextInput value={teamnaam} onChange={(e) => setTeamnaam(e.target.value)} placeholder="Teamnaam" autoFocus />
+                <ErrorMsg msg={fout} />
+              </div>
+              <div className="space-y-2">
+                <PrimaryButton type="submit" disabled={laden}>Aanmaken</PrimaryButton>
+                <BackButton onClick={() => reset('keuze')} />
+              </div>
+            </form>
+          )}
+
+          {/* AANSLUITEN */}
+          {scherm === 'aansluiten' && (
+            <form onSubmit={handleZoekTeam} className="space-y-5">
+              <div className="space-y-1">
+                <h2 className="text-white text-xl font-bold tracking-tight">Aansluiten</h2>
+                <p className="text-white/35 text-sm">Voer de join-code van je team in.</p>
+              </div>
+              <div className="space-y-3">
+                <TextInput value={code} onChange={(e) => setCode(e.target.value)} placeholder="Join-code" autoFocus />
+                <ErrorMsg msg={fout} />
+              </div>
+              <div className="space-y-2">
+                <PrimaryButton type="submit" disabled={laden}>Team zoeken</PrimaryButton>
+                <BackButton onClick={() => reset('keuze')} />
+              </div>
+            </form>
+          )}
+
+          {/* BEVESTIG */}
+          {scherm === 'bevestig' && gevondenTeam && (
+            <div className="space-y-5">
+              <div className="space-y-1">
+                <h2 className="text-white text-xl font-bold tracking-tight">Team gevonden</h2>
+                <p className="text-white/35 text-sm">Wil je je aansluiten bij dit team?</p>
+              </div>
+              <div className="bg-[#84cc16]/[0.06] border border-[#84cc16]/20 rounded-xl px-5 py-4 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-[#84cc16]/15 flex items-center justify-center flex-shrink-0">
+                  <span className="text-[#84cc16] text-base leading-none">⬡</span>
+                </div>
+                <div>
+                  <p className="text-white font-semibold text-sm">{gevondenTeam.naam}</p>
+                  <p className="text-white/35 text-xs mt-0.5">{gevondenTeam.id}</p>
+                </div>
+              </div>
+              <ErrorMsg msg={fout} />
+              <div className="space-y-2">
+                <PrimaryButton onClick={handleAansluiten} disabled={laden}>Aansluiten</PrimaryButton>
+                <BackButton onClick={() => reset('aansluiten')} />
+              </div>
+            </div>
+          )}
+
+          {/* SUCCES AANGEMAAKT */}
+          {scherm === 'succes-aangemaakt' && nieuwTeam && (
+            <div className="space-y-6 text-center">
+              <div className="space-y-3">
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#84cc16]/10 border border-[#84cc16]/25 mx-auto">
+                  <span className="text-[#84cc16] text-2xl">✓</span>
+                </div>
+                <div>
+                  <h2 className="text-white text-xl font-bold tracking-tight">Team aangemaakt!</h2>
+                  <p className="text-white/35 text-sm mt-1">Deel deze code met je teamleden.</p>
+                </div>
+              </div>
+              <div className="bg-white/[0.03] border border-white/10 rounded-xl py-4 px-5">
+                <p className="text-white/30 text-xs uppercase tracking-widest mb-2 font-medium">Join-code</p>
+                <p className="text-[#84cc16] text-3xl font-black tracking-wider font-mono">{nieuwTeam.joinCode}</p>
+              </div>
+              <div className="space-y-2">
+                <PrimaryButton onClick={() => navigate('/dashboard')}>Ga naar dashboard</PrimaryButton>
+                <BackButton onClick={() => navigate(-1)} />
+              </div>
+            </div>
+          )}
+
+          {/* SUCCES AANGESLOTEN */}
+          {scherm === 'succes-aangesloten' && (
+            <div className="space-y-6 text-center">
+              <div className="space-y-3">
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#84cc16]/10 border border-[#84cc16]/25 mx-auto">
+                  <span className="text-[#84cc16] text-2xl">⬡</span>
+                </div>
+                <div>
+                  <h2 className="text-white text-xl font-bold tracking-tight">Welkom bij het team!</h2>
+                  <p className="text-white/35 text-sm mt-1">Je bent succesvol toegevoegd.</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <PrimaryButton onClick={() => navigate('/dashboard')}>Ga naar dashboard</PrimaryButton>
+                <BackButton onClick={() => navigate(-1)} />
+              </div>
+            </div>
+          )}
+
         </div>
         <p className="text-center text-white/15 text-xs mt-5 tracking-wide">Stapril</p>
       </div>
