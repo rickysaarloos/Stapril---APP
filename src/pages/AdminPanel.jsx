@@ -56,53 +56,103 @@ export default function AdminPanel() {
  
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
- 
+
       {/* Navbar */}
-      <header className="border-b border-white/5 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="text-[#84cc16] text-xl leading-none">⬡</span>
-          <span className="text-white font-bold tracking-widest uppercase text-sm">Stapril</span>
-          <span className="text-[#84cc16] text-xs border border-[#84cc16]/30 rounded px-2 py-0.5 tracking-widest uppercase">
-            Admin
-          </span>
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="text-white/40 text-sm hidden sm:block">{user?.email}</span>
-          <button
-            onClick={handleLogout}
-            className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-3 py-1.5"
-          >
-            Uitloggen
-          </button>
-        </div>
-      </header>
- 
+<header className="border-b border-white/5 px-4 py-3 flex items-center justify-between gap-2">
+  <div className="flex items-center gap-2 shrink-0">
+    <span className="text-[#84cc16] text-xl leading-none">⬡</span>
+    <span className="text-white font-bold tracking-widest uppercase text-sm">Stapril</span>
+    <span className="text-[#84cc16] text-xs border border-[#84cc16]/30 rounded px-2 py-0.5 tracking-widest uppercase hidden sm:block">
+      Admin
+    </span>
+  </div>
+  <div className="flex items-center gap-2 shrink-0">
+    <button
+      onClick={() => navigate('/admin/handleiding')}
+      className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-2.5 py-1.5"
+    >
+      Handleiding
+    </button>
+    <button
+      onClick={() => navigate('/dashboard')}
+      className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-2.5 py-1.5"
+    >
+      Dashboard
+    </button>
+    <button
+      onClick={handleLogout}
+      className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-2.5 py-1.5"
+    >
+      Uitloggen
+    </button>
+  </div>
+</header>
+
       <main className="max-w-5xl mx-auto px-6 py-12 space-y-8">
- 
+
         {/* Header */}
         <div>
           <p className="text-[#84cc16] text-xs tracking-[0.2em] uppercase mb-2">beheer</p>
-          <h1 className="text-4xl sm:text-5xl font-black tracking-tight leading-tight">
-            Admin panel
-          </h1>
+          <h1 className="text-4xl sm:text-5xl font-black tracking-tight leading-tight">Admin panel</h1>
           <p className="text-white/30 text-sm mt-2">
             Ingelogd als <span className="text-white/50">{user?.naam}</span>
           </p>
         </div>
 
+        {fout && (
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-red-400 text-sm">
+            {fout}
+          </div>
+        )}
+
+   
+
+        {/* Challenge beheer */}
+        <div className={`rounded-2xl p-6 border flex items-center justify-between gap-4 transition-colors
+          ${challengeActief
+            ? 'bg-[#84cc16]/[0.06] border-[#84cc16]/30'
+            : 'bg-white/[0.03] border-white/5'
+          }`}
+        >
+          <div>
+            <h2 className="text-white font-bold">Challenge status</h2>
+            <p className="text-white/30 text-sm mt-0.5">
+              {laden ? '…' : challengeActief
+                ? `Actief sinds ${new Date(challengeStatus.gestart).toLocaleDateString('nl-NL')}`
+                : challengeStatus?.beeindigd
+                  ? `Beëindigd op ${new Date(challengeStatus.beeindigd).toLocaleDateString('nl-NL')}`
+                  : 'Challenge is nog niet gestart'
+              }
+            </p>
+          </div>
           <button
-    onClick={() => navigate('/dashboard')}
-    className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-3 py-1.5"
-  >
-    Dashboard
-  </button>
- 
+            onClick={handleChallengeToggle}
+            disabled={challengeLaden || laden}
+            className={`text-sm font-bold rounded-xl px-5 py-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2
+              ${challengeActief
+                ? 'bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400'
+                : 'bg-[#84cc16] hover:bg-[#95d926] text-[#0a0a0a]'
+              }`}
+          >
+            {challengeLaden && (
+              <span className={`w-4 h-4 border-2 rounded-full animate-spin
+                ${challengeActief
+                  ? 'border-red-400/20 border-t-red-400'
+                  : 'border-black/20 border-t-black/70'
+                }`}
+              />
+            )}
+            {challengeActief ? 'Challenge beëindigen' : 'Challenge starten'}
+          </button>
+        </div>
+
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
             { label: 'Deelnemers', value: laden ? '…' : aantalDeelnemers },
             { label: 'Admins', value: laden ? '…' : aantalAdmins },
             { label: 'In een team', value: laden ? '…' : aantalMetTeam },
+            { label: 'Teams', value: laden ? '…' : teams.length },
           ].map(({ label, value }) => (
             <div key={label} className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 flex flex-col gap-1">
               <span className="text-white/30 text-xs uppercase tracking-widest">{label}</span>
@@ -110,7 +160,137 @@ export default function AdminPanel() {
             </div>
           ))}
         </div>
- 
+
+        {/* Uitlichting */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 space-y-2">
+            <p className="text-white/30 text-xs uppercase tracking-widest">Meest actief</p>
+            {laden ? (
+              <p className="text-white/20 text-sm">Laden…</p>
+            ) : meestActief ? (
+              <>
+                <p className="text-white font-bold text-lg">{meestActief.naam || meestActief.email}</p>
+                <p className="text-[#84cc16] text-sm font-black">
+                  {meestActief.totaalStappen.toLocaleString('nl-NL')} stappen
+                </p>
+                <p className="text-white/20 text-xs">{meestActief.email}</p>
+              </>
+            ) : (
+              <p className="text-white/20 text-sm">Nog geen data</p>
+            )}
+          </div>
+
+          <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 space-y-2">
+            <p className="text-white/30 text-xs uppercase tracking-widest">Beste team</p>
+            {laden ? (
+              <p className="text-white/20 text-sm">Laden…</p>
+            ) : besteTeam ? (
+              <>
+                <p className="text-white font-bold text-lg">{besteTeam.naam}</p>
+                <p className="text-[#84cc16] text-sm font-black">
+                  {besteTeam.totaalStappen.toLocaleString('nl-NL')} stappen
+                </p>
+                <p className="text-white/20 text-xs">{besteTeam.aantalLeden} leden</p>
+              </>
+            ) : (
+              <p className="text-white/20 text-sm">Nog geen teams</p>
+            )}
+          </div>
+        </div>
+
+        {/* Statistieken */}
+        <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-6 space-y-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-white font-bold">Statistieken vandaag</h2>
+            <button
+              onClick={handleExport}
+              className="text-xs uppercase tracking-widest text-white/40 hover:text-white border border-white/10 hover:border-white/30 rounded-lg px-3 py-1.5 transition-colors"
+            >
+              Exporteren CSV
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-white/50">Dagdoel gehaald vandaag</span>
+              <span className="text-white font-bold">{laden ? '…' : `${percentageDagdoel}%`}</span>
+            </div>
+            <div className="w-full bg-white/5 rounded-full h-2">
+              <div
+                className="bg-[#84cc16] h-2 rounded-full transition-all duration-500"
+                style={{ width: laden ? '0%' : `${percentageDagdoel}%` }}
+              />
+            </div>
+            <p className="text-white/20 text-xs">
+              {laden ? '…' : `${dagdoelVandaag.length} van ${actieveDeelnemers.length} deelnemers`}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            {[
+              {
+                label: 'Gem. stappen vandaag',
+                value: laden ? '…' : actieveDeelnemers.length > 0
+                  ? Math.round(
+                      actieveDeelnemers.reduce((sum, g) => sum + g.stappenVandaag, 0) /
+                      actieveDeelnemers.length
+                    ).toLocaleString('nl-NL')
+                  : '—'
+              },
+              {
+                label: 'Totaal stappen ooit',
+                value: laden ? '…' : gebruikers
+                  .reduce((sum, g) => sum + g.totaalStappen, 0)
+                  .toLocaleString('nl-NL')
+              },
+              {
+                label: 'Invoer vandaag',
+                value: laden ? '…' : actieveDeelnemers.filter(g => g.stappenVandaag > 0).length
+              },
+            ].map(({ label, value }) => (
+              <div key={label} className="bg-white/[0.03] border border-white/5 rounded-xl p-4 space-y-1">
+                <p className="text-white/30 text-xs uppercase tracking-widest">{label}</p>
+                <p className="text-white font-black text-xl">{value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Teams overzicht */}
+        <div className="bg-white/[0.03] border border-white/5 rounded-2xl overflow-hidden">
+          <div className="p-5 border-b border-white/5">
+            <h2 className="text-white font-bold">Teams</h2>
+          </div>
+          {laden ? (
+            <div className="flex items-center justify-center py-12">
+              <span className="w-6 h-6 border-2 border-white/10 border-t-[#84cc16] rounded-full animate-spin" />
+            </div>
+          ) : teams.length === 0 ? (
+            <p className="text-white/30 text-sm text-center py-12">Nog geen teams aangemaakt.</p>
+          ) : (
+            <div className="divide-y divide-white/5">
+              {teams.map((team, index) => (
+                <div key={team.id} className="px-5 py-4 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-white/20 text-sm font-bold w-5 text-center shrink-0">
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-white text-sm font-medium truncate">{team.naam}</p>
+                      <p className="text-white/30 text-xs">
+                        {team.aantalLeden} leden · code: {team.joinCode}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-[#84cc16] text-sm font-black shrink-0">
+                    {team.totaalStappen.toLocaleString('nl-NL')}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Gebruikerslijst */}
         <div className="bg-white/[0.03] border border-white/5 rounded-2xl overflow-hidden">
           <div className="p-5 border-b border-white/5 flex items-center justify-between gap-4">
@@ -123,13 +303,6 @@ export default function AdminPanel() {
               className="bg-white/5 border border-white/10 focus:border-[#84cc16]/40 rounded-lg px-3 py-2 text-white text-sm placeholder:text-white/20 outline-none transition-colors w-64"
             />
           </div>
- 
-          {fout && (
-            <div className="px-5 py-3 bg-red-500/10 border-b border-red-500/20 text-red-400 text-sm">
-              {fout}
-            </div>
-          )}
- 
           {laden ? (
             <div className="flex items-center justify-center py-16">
               <span className="w-6 h-6 border-2 border-white/10 border-t-[#84cc16] rounded-full animate-spin" />
@@ -143,12 +316,13 @@ export default function AdminPanel() {
                   <div className="min-w-0">
                     <p className="text-white text-sm font-medium truncate">{g.naam || '—'}</p>
                     <p className="text-white/30 text-xs truncate">{g.email}</p>
-                    {g.teamId && (
-                      <p className="text-white/20 text-xs mt-0.5">Team: {g.teamId}</p>
-                    )}
+                    <p className="text-white/20 text-xs mt-0.5">
+                      {g.stappenVandaag?.toLocaleString('nl-NL') ?? 0} vandaag ·{' '}
+                      {g.totaalStappen?.toLocaleString('nl-NL') ?? 0} totaal
+                      {g.teamId && ` · team: ${g.teamId}`}
+                    </p>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
-                    {/* Rol badge */}
                     <span className={`text-xs px-2 py-1 rounded border ${
                       g.role === 'admin'
                         ? 'text-[#84cc16] border-[#84cc16]/30 bg-[#84cc16]/5'
@@ -156,12 +330,9 @@ export default function AdminPanel() {
                     }`}>
                       {g.role || 'deelnemer'}
                     </span>
-                    {/* Rol toggle — niet op zichzelf */}
                     {g.id !== user?.uid && (
                       <button
-                        onClick={() =>
-                          handleRolWijzigen(g.id, g.role === 'admin' ? 'deelnemer' : 'admin')
-                        }
+                        onClick={() => handleRolWijzigen(g.id, g.role === 'admin' ? 'deelnemer' : 'admin')}
                         className="text-xs text-white/30 hover:text-white border border-white/10 hover:border-white/30 rounded-lg px-3 py-1.5 transition-colors"
                       >
                         {g.role === 'admin' ? 'Maak deelnemer' : 'Maak admin'}
@@ -173,7 +344,6 @@ export default function AdminPanel() {
             </div>
           )}
         </div>
- 
       </main>
     </div>
   )

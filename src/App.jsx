@@ -6,6 +6,7 @@ import Register from './pages/Register'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import AdminPanel from './pages/AdminPanel'
+import AdminHandleiding from './pages/AdminHandleiding'
 import Team from './pages/Team'
 import Profiel from './pages/Profiel'
 import BadgesPage from './pages/Badges'
@@ -48,6 +49,10 @@ function AppRoutes() {
 
       <Route path="/admin" element={
         <ProtectedRoute adminOnly><AdminPanel /></ProtectedRoute>
+      } />
+
+      <Route path="/admin/handleiding" element={
+        <ProtectedRoute adminOnly><AdminHandleiding /></ProtectedRoute>
       } />
 
       {/* Fallback */}
