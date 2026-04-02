@@ -7,55 +7,55 @@ export function useKlassement() {
   const [laden, setLaden] = useState(true)
 
   useEffect(() => {
-    // Listener op teams
-    const teamsQuery = query(collection(db, 'teams'))
-    const unsubTeams = onSnapshot(teamsQuery, async (teamsSnap) => {
+    let teamsData = []
+    let stappenData = []
 
-      // Listener op stappen
-      const stappenQuery = query(collection(db, 'stappen'))
-      const unsubStappen = onSnapshot(stappenQuery, (stappenSnap) => {
-        const stappen = stappenSnap.docs.map(d => d.data())
+    function bereken() {
+      const teams = teamsData.map(team => {
+        const leden = team.leden ?? []
+        const teamStappen = stappenData.filter(s => leden.includes(s.uid))
+        const totaal = teamStappen.reduce((sum, s) => sum + (s.stappen ?? 0), 0)
+        const aantalLeden = leden.length
+        const uniekeDagen = new Set(teamStappen.map(s => s.datum)).size
+        const gemiddeld = aantalLeden > 0 && uniekeDagen > 0
+          ? Math.round(totaal / aantalLeden / uniekeDagen)
+          : 0
 
-        const teams = teamsSnap.docs.map(teamDoc => {
-          const team = { id: teamDoc.id, ...teamDoc.data() }
-
-          // Stappen van dit team
-          const teamStappen = stappen.filter(s => {
-            // uid koppelen aan teamleden — via leden array in team doc
-            return team.leden?.includes(s.uid)
-          })
-
-          const totaal = teamStappen.reduce((sum, s) => sum + (s.stappen ?? 0), 0)
-          const aantalLeden = team.leden?.length ?? 0
-
-          // Unieke dagen per lid
-          const uniekeDagen = new Set(teamStappen.map(s => s.datum)).size
-          const gemiddeld = aantalLeden > 0 && uniekeDagen > 0
-            ? Math.round(totaal / aantalLeden / uniekeDagen)
-            : 0
-
-          return {
-            id: team.id,
-            naam: team.naam,
-            aantalLeden,
-            totaalStappen: totaal,
-            gemiddeldPerPersoonPerDag: gemiddeld,
-          }
-        })
-
-        // Sorteren op totale stappen
-        teams.sort((a, b) => b.totaalStappen - a.totaalStappen)
-        setKlassement(teams)
-        setLaden(false)
+        return {
+          id: team.id,
+          naam: team.naam,
+          aantalLeden,
+          totaalStappen: totaal,
+          gemiddeldPerPersoonPerDag: gemiddeld,
+        }
       })
 
-      // Cleanup stappen listener
-      return () => unsubStappen()
-    })
+      teams.sort((a, b) => b.totaalStappen - a.totaalStappen)
+      setKlassement(teams)
+      setLaden(false)
+    }
 
-    // Cleanup teams listener
-    return () => unsubTeams()
+    const unsubTeams = onSnapshot(
+      query(collection(db, 'teams')),
+      snap => {
+        teamsData = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        bereken()
+      }
+    )
+
+    const unsubStappen = onSnapshot(
+      query(collection(db, 'stappen')),
+      snap => {
+        stappenData = snap.docs.map(d => d.data())
+        bereken()
+      }
+    )
+
+    return () => {
+      unsubTeams()
+      unsubStappen()
+    }
   }, [])
 
-    return { klassement, laden }
+  return { klassement, laden }
 }

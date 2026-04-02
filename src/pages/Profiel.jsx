@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../context/AuthContext'
-import { doc, getDoc } from 'firebase/firestore'
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '../firebase'
 
 const BADGE_DEF = [
@@ -24,8 +24,6 @@ function getPrevMilestone(steps) {
 function fmt(n) {
   return n.toLocaleString('nl-NL')
 }
-
-// ── Sub-components ─────────────────────────────────────────
 
 function BadgeRow({ badge, unlocked }) {
   return (
@@ -66,8 +64,6 @@ function BadgeRow({ badge, unlocked }) {
   )
 }
 
-// ── Main page ──────────────────────────────────────────────
-
 export default function Profiel() {
   const { user } = useAuthContext()
   const navigate = useNavigate()
@@ -82,11 +78,17 @@ export default function Profiel() {
 
     async function laadData() {
       try {
-        const snap = await getDoc(doc(db, 'users', user.uid))
-        const data = snap.data() ?? {}
+        const [userSnap, stappenSnap] = await Promise.all([
+          getDoc(doc(db, 'users', user.uid)),
+          getDocs(query(collection(db, 'stappen'), where('uid', '==', user.uid)))
+        ])
 
-        setTotalSteps(data.totalSteps ?? 0)
+        const data = userSnap.data() ?? {}
         setBadges(data.badges ?? [])
+
+        // Totaal berekenen uit stappen collectie
+        const totaal = stappenSnap.docs.reduce((sum, d) => sum + (d.data().stappen ?? 0), 0)
+        setTotalSteps(totaal)
 
         if (data.teamId) {
           const teamSnap = await getDoc(doc(db, 'teams', data.teamId))
@@ -106,7 +108,7 @@ export default function Profiel() {
   const prev = getPrevMilestone(totalSteps)
   const pct = next === prev ? 100 : Math.round(((totalSteps - prev) / (next - prev)) * 100)
   const earnedCount = BADGE_DEF.filter(b => badges.includes(b.id)).length
-  const initials = (user?.displayName ?? user?.email ?? 'U')
+  const initials = (user?.naam ?? user?.email ?? 'U')
     .split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
 
   if (laden) {
@@ -133,7 +135,7 @@ export default function Profiel() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-white font-black text-xl tracking-tight truncate">
-              {user?.displayName ?? user?.email}
+              {user?.naam ?? user?.email}
             </p>
             {teamNaam && (
               <div className="inline-flex items-center gap-1.5 mt-1 bg-white/[0.04] border border-white/[0.08] rounded-md px-2 py-0.5">
@@ -146,7 +148,6 @@ export default function Profiel() {
 
         {/* Total steps */}
         <div className="relative mt-5 p-5 bg-white/[0.03] border border-white/[0.08] rounded-2xl overflow-hidden">
-          {/* glow blob */}
           <div className="absolute -top-8 -right-8 w-24 h-24 bg-[#84cc16]/10 rounded-full blur-2xl pointer-events-none" />
 
           <p className="text-white/35 text-[10px] uppercase tracking-widest mb-2 font-medium">
@@ -193,7 +194,7 @@ export default function Profiel() {
           </div>
         </div>
 
-        {/* Back */}
+        {/* Terug */}
         <button
           onClick={() => navigate('/dashboard')}
           className="mt-6 w-full py-3 bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.08] hover:border-white/20 text-white/50 hover:text-white text-sm font-medium rounded-xl transition-all duration-200"
