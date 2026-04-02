@@ -1,92 +1,189 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { collection, getDocs, doc, updateDoc } from 'firebase/firestore'
+import { collection, getDocs, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuthContext } from '../context/AuthContext'
- 
+
 export default function AdminPanel() {
   const { user, logout } = useAuthContext()
   const navigate = useNavigate()
- 
+
   const [gebruikers, setGebruikers] = useState([])
+  const [teams, setTeams] = useState([])
+  const [challengeStatus, setChallengeStatus] = useState(null)
   const [laden, setLaden] = useState(true)
+  const [challengeLaden, setChallengeLaden] = useState(false)
   const [fout, setFout] = useState('')
   const [zoek, setZoek] = useState('')
- 
+
   useEffect(() => {
-    async function laadGebruikers() {
+    async function laadData() {
       try {
-        const snap = await getDocs(collection(db, 'users'))
-        const lijst = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-        setGebruikers(lijst)
+        const [gebruikersSnap, teamsSnap, stappenSnap, challengeSnap] = await Promise.all([
+          getDocs(collection(db, 'users')),
+          getDocs(collection(db, 'teams')),
+          getDocs(collection(db, 'stappen')),
+          getDoc(doc(db, 'instellingen', 'challenge')),
+        ])
+
+        const gebruikersList = gebruikersSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+        const stappen = stappenSnap.docs.map(d => d.data())
+        const vandaag = new Date().toISOString().split('T')[0]
+
+        const stappenPerUid = {}
+        const stappenVandaagPerUid = {}
+        stappen.forEach(s => {
+          stappenPerUid[s.uid] = (stappenPerUid[s.uid] ?? 0) + (s.stappen ?? 0)
+          if (s.datum === vandaag) {
+            stappenVandaagPerUid[s.uid] = s.stappen ?? 0
+          }
+        })
+
+        const gebruikersMetStappen = gebruikersList.map(g => ({
+          ...g,
+          totaalStappen: stappenPerUid[g.id] ?? 0,
+          stappenVandaag: stappenVandaagPerUid[g.id] ?? 0,
+        }))
+        setGebruikers(gebruikersMetStappen)
+
+        const teamsList = teamsSnap.docs.map(teamDoc => {
+          const team = { id: teamDoc.id, ...teamDoc.data() }
+          const leden = gebruikersMetStappen.filter(g => g.teamId === team.id)
+          const totaal = leden.reduce((sum, l) => sum + l.totaalStappen, 0)
+          return {
+            ...team,
+            leden,
+            aantalLeden: leden.length,
+            totaalStappen: totaal,
+          }
+        })
+        teamsList.sort((a, b) => b.totaalStappen - a.totaalStappen)
+        setTeams(teamsList)
+
+        if (challengeSnap.exists()) {
+          setChallengeStatus(challengeSnap.data())
+        }
       } catch {
-        setFout('Kon gebruikers niet laden.')
+        setFout('Kon data niet laden.')
       } finally {
         setLaden(false)
       }
     }
-    laadGebruikers()
+    laadData()
   }, [])
- 
+
   async function handleRolWijzigen(uid, nieuweRol) {
     try {
       await updateDoc(doc(db, 'users', uid), { role: nieuweRol })
-      setGebruikers((prev) =>
-        prev.map((g) => (g.id === uid ? { ...g, role: nieuweRol } : g))
+      setGebruikers(prev =>
+        prev.map(g => g.id === uid ? { ...g, role: nieuweRol } : g)
       )
     } catch {
       setFout('Rol wijzigen mislukt.')
     }
   }
- 
+
+  async function handleChallengeToggle() {
+    setChallengeLaden(true)
+    try {
+      const actief = challengeStatus?.actief ?? false
+      const nieuweStatus = {
+        actief: !actief,
+        gewijzigdOp: new Date().toISOString(),
+        gewijzigdDoor: user.uid,
+        ...(!actief
+          ? { gestart: new Date().toISOString() }
+          : { beeindigd: new Date().toISOString() }
+        ),
+      }
+      await setDoc(doc(db, 'instellingen', 'challenge'), nieuweStatus)
+      setChallengeStatus(nieuweStatus)
+    } catch {
+      setFout('Challenge status wijzigen mislukt.')
+    } finally {
+      setChallengeLaden(false)
+    }
+  }
+
+  function handleExport() {
+    const rijen = [
+      ['Naam', 'Email', 'Rol', 'Team', 'Stappen vandaag', 'Totaal stappen'],
+      ...gebruikers.map(g => [
+        g.naam ?? '',
+        g.email ?? '',
+        g.role ?? 'deelnemer',
+        g.teamId ?? '',
+        g.stappenVandaag ?? 0,
+        g.totaalStappen ?? 0,
+      ])
+    ]
+    const csv = rijen.map(r => r.join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `stapril_export_${new Date().toISOString().split('T')[0]}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   async function handleLogout() {
     await logout()
     navigate('/login')
   }
- 
+
   const gefilterd = gebruikers.filter(
-    (g) =>
+    g =>
       g.naam?.toLowerCase().includes(zoek.toLowerCase()) ||
       g.email?.toLowerCase().includes(zoek.toLowerCase())
   )
- 
-  const aantalDeelnemers = gebruikers.filter((g) => g.role === 'deelnemer').length
-  const aantalAdmins = gebruikers.filter((g) => g.role === 'admin').length
-  const aantalMetTeam = gebruikers.filter((g) => g.teamId).length
- 
+
+  const aantalDeelnemers = gebruikers.filter(g => g.role === 'deelnemer').length
+  const aantalAdmins = gebruikers.filter(g => g.role === 'admin').length
+  const aantalMetTeam = gebruikers.filter(g => g.teamId).length
+  const meestActief = [...gebruikers].sort((a, b) => b.totaalStappen - a.totaalStappen)[0]
+  const besteTeam = teams[0]
+  const challengeActief = challengeStatus?.actief ?? false
+
+  const actieveDeelnemers = gebruikers.filter(g => g.role === 'deelnemer')
+  const dagdoelVandaag = actieveDeelnemers.filter(g => g.stappenVandaag >= 10000)
+  const percentageDagdoel = actieveDeelnemers.length > 0
+    ? Math.round((dagdoelVandaag.length / actieveDeelnemers.length) * 100)
+    : 0
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
 
       {/* Navbar */}
-<header className="border-b border-white/5 px-4 py-3 flex items-center justify-between gap-2">
-  <div className="flex items-center gap-2 shrink-0">
-    <span className="text-[#84cc16] text-xl leading-none">⬡</span>
-    <span className="text-white font-bold tracking-widest uppercase text-sm">Stapril</span>
-    <span className="text-[#84cc16] text-xs border border-[#84cc16]/30 rounded px-2 py-0.5 tracking-widest uppercase hidden sm:block">
-      Admin
-    </span>
-  </div>
-  <div className="flex items-center gap-2 shrink-0">
-    <button
-      onClick={() => navigate('/admin/handleiding')}
-      className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-2.5 py-1.5"
-    >
-      Handleiding
-    </button>
-    <button
-      onClick={() => navigate('/dashboard')}
-      className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-2.5 py-1.5"
-    >
-      Dashboard
-    </button>
-    <button
-      onClick={handleLogout}
-      className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-2.5 py-1.5"
-    >
-      Uitloggen
-    </button>
-  </div>
-</header>
+      <header className="border-b border-white/5 px-4 py-3 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-[#84cc16] text-xl leading-none">⬡</span>
+          <span className="text-white font-bold tracking-widest uppercase text-sm">Stapril</span>
+          <span className="text-[#84cc16] text-xs border border-[#84cc16]/30 rounded px-2 py-0.5 tracking-widest uppercase hidden sm:block">
+            Admin
+          </span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => navigate('/admin/handleiding')}
+            className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-2.5 py-1.5"
+          >
+            Handleiding
+          </button>
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-2.5 py-1.5"
+          >
+            Dashboard
+          </button>
+          <button
+            onClick={handleLogout}
+            className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-2.5 py-1.5"
+          >
+            Uitloggen
+          </button>
+        </div>
+      </header>
 
       <main className="max-w-5xl mx-auto px-6 py-12 space-y-8">
 
@@ -104,8 +201,6 @@ export default function AdminPanel() {
             {fout}
           </div>
         )}
-
-   
 
         {/* Challenge beheer */}
         <div className={`rounded-2xl p-6 border flex items-center justify-between gap-4 transition-colors
@@ -303,6 +398,7 @@ export default function AdminPanel() {
               className="bg-white/5 border border-white/10 focus:border-[#84cc16]/40 rounded-lg px-3 py-2 text-white text-sm placeholder:text-white/20 outline-none transition-colors w-64"
             />
           </div>
+
           {laden ? (
             <div className="flex items-center justify-center py-16">
               <span className="w-6 h-6 border-2 border-white/10 border-t-[#84cc16] rounded-full animate-spin" />
@@ -344,6 +440,7 @@ export default function AdminPanel() {
             </div>
           )}
         </div>
+
       </main>
     </div>
   )

@@ -112,12 +112,7 @@ export default function Dashboard() {
             </button>
           )}
           <span className="text-white/40 text-sm hidden sm:block">{user?.email}</span>
-          <button
-            onClick={() => navigate('/badges')}
-            className="text-xs uppercase tracking-widest text-[#84cc16]/60 hover:text-[#84cc16] transition-colors border border-[#84cc16]/20 hover:border-[#84cc16]/40 rounded-lg px-3 py-1.5"
-          >
-            Badges
-          </button>
+
           <button
             onClick={() => navigate('/profiel')}
             className="flex items-center gap-2 bg-[#84cc16]/10 hover:bg-[#84cc16]/20 border border-[#84cc16]/25 hover:border-[#84cc16]/50 text-[#84cc16] text-xs font-bold rounded-xl px-3 py-2 transition-all duration-200"
@@ -152,6 +147,24 @@ export default function Dashboard() {
             }
           </p>
         </div>
+        {/* Badges */}
+<div
+  onClick={() => navigate('/badges')}
+  className="bg-white/[0.03] hover:bg-white/[0.05] border border-white/5 hover:border-[#84cc16]/20 rounded-2xl p-5 flex items-center justify-between cursor-pointer transition-all duration-200 group"
+>
+  <div className="flex items-center gap-4">
+    <div className="w-11 h-11 rounded-xl bg-[#84cc16]/10 border border-[#84cc16]/20 flex items-center justify-center text-xl shrink-0">
+      🏅
+    </div>
+    <div>
+      <h2 className="text-white font-bold text-sm">Jouw badges</h2>
+      <p className="text-white/30 text-xs mt-0.5">Bekijk je behaalde prestaties</p>
+    </div>
+  </div>
+  <span className="text-white/20 group-hover:text-[#84cc16]/60 group-hover:translate-x-0.5 transition-all duration-200 text-lg">
+    →
+  </span>
+</div>
 
         {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
