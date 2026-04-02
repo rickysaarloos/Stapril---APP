@@ -155,7 +155,7 @@ export default function AdminPanel() {
     <div className="min-h-screen bg-[#0a0a0a] text-white">
 
       {/* Navbar */}
-     <header className="border-b border-white/5 px-4 py-3 flex items-center justify-between gap-2">
+<header className="border-b border-white/5 px-4 py-3 flex items-center justify-between gap-2">
   <div className="flex items-center gap-2 shrink-0">
     <span className="text-[#84cc16] text-xl leading-none">⬡</span>
     <span className="text-white font-bold tracking-widest uppercase text-sm">Stapril</span>
@@ -164,6 +164,12 @@ export default function AdminPanel() {
     </span>
   </div>
   <div className="flex items-center gap-2 shrink-0">
+    <button
+      onClick={() => navigate('/admin/handleiding')}
+      className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-2.5 py-1.5"
+    >
+      Handleiding
+    </button>
     <button
       onClick={() => navigate('/dashboard')}
       className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-2.5 py-1.5"
@@ -195,6 +201,8 @@ export default function AdminPanel() {
             {fout}
           </div>
         )}
+
+   
 
         {/* Challenge beheer */}
         <div className={`rounded-2xl p-6 border flex items-center justify-between gap-4 transition-colors
