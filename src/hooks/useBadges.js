@@ -4,7 +4,10 @@ import {
 } from 'firebase/firestore'
 import { db } from '../firebase'
 
-// Alle badges die de app kent
+/**
+ * Beschrijft alle beschikbare badges in de applicatie.
+ * @type {{id:string,naam:string,beschrijving:string,icoon:string}[]}
+ */
 export const ALLE_BADGES = [
   {
     id: 'eerste_stap',
@@ -38,7 +41,11 @@ export const ALLE_BADGES = [
   },
 ]
 
-// Controleert welke badges verdiend zijn op basis van de stappendata
+/**
+ * Berekent welke badges een gebruiker heeft verdiend op basis van stappen per datum.
+ * @param {{[datum:string]: number}} stepsMap Object met datum keys en stappenwaarden
+ * @returns {Set<string>} Set met verdiende badge IDs
+ */
 function berekenVerdiendeBadges(stepsMap) {
   const DOEL = 10000
   const verdiend = new Set()
@@ -72,7 +79,12 @@ function berekenVerdiendeBadges(stepsMap) {
   return verdiend
 }
 
-// Kent een badge toe in Firestore — alleen als die nog niet bestaat (geen dubbele toekenning)
+/**
+ * Kent een badge toe aan een gebruiker in Firestore, als deze niet al bestaat.
+ * @param {string} uid Gebruikers-ID
+ * @param {string} badgeId Badge-ID
+ * @returns {Promise<boolean>} True als nieuw, false als reeds bestaat
+ */
 async function kenBadgeToe(uid, badgeId) {
   const ref = doc(db, 'users', uid, 'badges', badgeId)
   const snap = await getDoc(ref)
@@ -85,7 +97,12 @@ async function kenBadgeToe(uid, badgeId) {
   return true // nieuw verdiend
 }
 
-// Verwerkt alle badges na een stappen-update
+/**
+ * Verwerkt en schrijft nieuw verdiende badges weg in Firestore.
+ * @param {string} uid Gebruikers-ID
+ * @param {{[datum:string]: number}} stepsMap Stappen per datum
+ * @returns {Promise<string[]>} Lijst van nieuw toegekende badge IDs
+ */
 export async function verwerkBadges(uid, stepsMap) {
   const verdiend = berekenVerdiendeBadges(stepsMap)
   const nieuw = []
@@ -98,7 +115,11 @@ export async function verwerkBadges(uid, stepsMap) {
   return nieuw // geeft terug welke badges nét verdiend zijn (voor animatie)
 }
 
-// Hook — laadt verdiende badges realtime uit Firestore
+/**
+ * Custom hook die badges voor een gebruiker ophaalt uit Firestore.
+ * @param {string} uid Gebruikers-ID
+ * @returns {{verdiendeBadges: object, loading: boolean}}
+ */
 export function useBadges(uid) {
   const [verdiendeBadges, setVerdiendeBadges] = useState([])
   const [loading, setLoading] = useState(true)

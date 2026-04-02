@@ -2,6 +2,10 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuthContext } from '../context/AuthContext'
 
+/**
+ * Validatie voor registratievelden.
+ * @type {{naam:(v:string)=>string|null,email:(v:string)=>string|null,password:(v:string)=>string|null}}
+ */
 const validate = {
   naam(v) {
     if (!v.trim()) return 'Vul je naam in'
@@ -20,6 +24,10 @@ const validate = {
   },
 }
 
+/**
+ * Registratiepagina voor nieuwe gebruikers.
+ * @returns {JSX.Element}
+ */
 export default function RegisterPage() {
   const navigate = useNavigate()
   const { registreer } = useAuthContext()

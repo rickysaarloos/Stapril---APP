@@ -4,6 +4,11 @@ import { db } from '../firebase'
 
 const DAGDOEL = 10000
 
+/**
+ * Berekent de huidige dagstreak op basis van volgorde van doel-dagen.
+ * @param {string[]} datums Array met ISO-datumstrings waarop doel gehaald is
+ * @returns {number} Aantal opeenvolgende dagen vanaf vandaag
+ */
 function berekenStreak(datums) {
   if (!datums.length) return 0
 
@@ -28,6 +33,12 @@ function berekenStreak(datums) {
   return streak
 }
 
+/**
+ * Hook met gebruikersstatistieken (totaal stappen, aantal doeldagen en streak).
+ * @param {string} uid Gebruikers-ID
+ * @param {number} [refresh=0] Triggert herladen van data
+ * @returns {{totaalStappen:number, doelDagen:number, streak:number, laden:boolean}}
+ */
 export function useStats(uid, refresh = 0) {
   const [stats, setStats] = useState({
     totaalStappen: 0,

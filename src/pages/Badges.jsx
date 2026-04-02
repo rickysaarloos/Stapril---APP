@@ -1,3 +1,7 @@
+/**
+ * Pagina voor gebruikersbadges en voortgang.
+ * @returns {JSX.Element}
+ */
 import { useAuthContext } from '../context/AuthContext'
 import { useBadges, ALLE_BADGES } from '../hooks/useBadges'
 import { useNavigate } from 'react-router-dom'

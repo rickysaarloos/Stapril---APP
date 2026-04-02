@@ -15,6 +15,10 @@ import { db } from '../firebase'
  
 const WOORDEN = ['STAP', 'TEAM', 'LOOP', 'APRIL', 'FIT', 'RUN', 'MOVE', 'GO']
  
+/**
+ * Genereert een willekeurige join-code (bijv. APRIL42).
+ * @returns {string}
+ */
 function genereerCode() {
   const woord = WOORDEN[Math.floor(Math.random() * WOORDEN.length)]
   const getal = Math.floor(10 + Math.random() * 90) // 10–99
@@ -23,6 +27,7 @@ function genereerCode() {
  
 /**
  * Genereert een unieke join-code die nog niet bestaat in Firestore.
+ * @returns {Promise<string>}
  */
 async function uniekCode() {
   let code
@@ -35,6 +40,11 @@ async function uniekCode() {
   return code
 }
  
+/**
+ * Controleert of een join-code al in gebruik is.
+ * @param {string} code Join-code
+ * @returns {Promise<boolean>} True als code bestaat
+ */
 async function codeBestaatAl(code) {
   const q = query(collection(db, 'teams'), where('joinCode', '==', code))
   const snap = await getDocs(q)

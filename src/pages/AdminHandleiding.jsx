@@ -1,3 +1,7 @@
+/**
+ * Admin handleiding pagina met stapsgewijze instructies.
+ * @returns {JSX.Element}
+ */
 import { useNavigate } from 'react-router-dom'
 
 export default function AdminHandleiding() {

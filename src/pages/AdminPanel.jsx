@@ -1,3 +1,7 @@
+/**
+ * Admindashboard met gebruikers-, team- en challengebeheer.
+ * @returns {JSX.Element}
+ */
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { collection, getDocs, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore'

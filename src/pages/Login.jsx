@@ -2,6 +2,10 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuthContext } from '../context/AuthContext'
 
+/**
+ * Validatieregels voor loginvelden.
+ * @type {{email:(v:string)=>string|null, password:(v:string)=>string|null}}
+ */
 const validate = {
   email(v) {
     if (!v.trim()) return 'Vul je e-mailadres in'
@@ -14,6 +18,10 @@ const validate = {
   },
 }
 
+/**
+ * Loginpagina voor bestaande gebruikers.
+ * @returns {JSX.Element}
+ */
 export default function LoginPage() {
   const navigate = useNavigate()
   const { login } = useAuthContext()

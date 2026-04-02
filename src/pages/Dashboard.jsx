@@ -6,10 +6,19 @@ import Klassement from '../components/Klassement'
 import { useStats } from '../hooks/useStepStats'
 import { dagVanApril } from '../utils/datum'
 import { laadStappenVandaag, slaStappenOp } from '../utils/stappen'
+/**
+ * Haalt de teamnaam op voor een gegeven teamId.
+ * @param {string|null} teamId Team-ID
+ * @returns {Promise<string|null>} Teamnaam of null
+ */
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '../firebase'
 import { verwerkBadges } from '../hooks/useBadges'
 
+/**
+ * Dashboardpagina voor gebruiker met stappenoverzicht en teamstatus.
+ * @returns {JSX.Element}
+ */
 async function laadTeamNaam(teamId) {
   if (!teamId) return null
   const snap = await getDoc(doc(db, 'teams', teamId))

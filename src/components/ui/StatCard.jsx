@@ -1,3 +1,8 @@
+/**
+ * Kaartcomponent voor één statistiek.
+ * @param {{value:string|number, label:string, highlight?:boolean}} props
+ * @returns {JSX.Element}
+ */
 export default function StatCard({ value, label, highlight = false }) {
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-1">

@@ -11,12 +11,20 @@ import Team from './pages/Team'
 import Profiel from './pages/Profiel'
 import BadgesPage from './pages/Badges'
 
+/**
+ * Route wrapper die ingelogde gebruikers doorstuurt naar dashboard.
+ * @param {{children: React.ReactNode}} props
+ */
 function PublicRoute({ children }) {
   const { user, loading } = useAuthContext()
   if (loading) return null
   return user ? <Navigate to="/dashboard" replace /> : children
 }
 
+/**
+ * Definieert alle applicatieroutes met beveiliging.
+ * @returns {JSX.Element}
+ */
 function AppRoutes() {
   return (
     <Routes>
@@ -62,6 +70,10 @@ function AppRoutes() {
   )
 }
 
+/**
+ * Root component met router en authprovider.
+ * @returns {JSX.Element}
+ */
 export default function App() {
   return (
     <BrowserRouter>

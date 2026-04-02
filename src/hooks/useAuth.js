@@ -8,8 +8,16 @@ import {
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { auth, db } from '../firebase'
 
+/**
+ * Key voor localStorage waar ingelogde gebruikersdata wordt bewaard.
+ * @type {string}
+ */
 const STORAGE_KEY = 'stapril_user'
 
+/**
+ * Custom React hook voor authenticatie (Firebase) met lokale opslag.
+ * @returns {{ user: object|null, loading: boolean, registreer: function, login: function, logout: function }}
+ */
 export function useAuth() {
   const [user, setUser] = useState(() => {
     try {
@@ -47,6 +55,13 @@ export function useAuth() {
     return () => unsub()
   }, [])
 
+  /**
+   * Registreert een nieuwe gebruiker in Firebase Auth + Firestore.
+   * @param {string} naam Gebruikersnaam
+   * @param {string} email Emailadres
+   * @param {string} wachtwoord Wachtwoord
+   * @returns {Promise<object>} Firebase gebruikersobject
+   */
   async function registreer(naam, email, wachtwoord) {
     const result = await createUserWithEmailAndPassword(auth, email, wachtwoord)
     await setDoc(doc(db, 'users', result.user.uid), {
@@ -59,10 +74,20 @@ export function useAuth() {
     return result.user
   }
 
+  /**
+   * Logt een gebruiker in met email en wachtwoord.
+   * @param {string} email Emailadres
+   * @param {string} wachtwoord Wachtwoord
+   * @returns {Promise<object>} Firebase loginresultaat
+   */
   async function login(email, wachtwoord) {
     return signInWithEmailAndPassword(auth, email, wachtwoord)
   }
 
+  /**
+   * Logt de huidige gebruiker uit.
+   * @returns {Promise<void>}
+   */
   async function logout() {
     await signOut(auth)
   }

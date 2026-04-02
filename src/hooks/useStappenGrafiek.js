@@ -2,6 +2,12 @@ import { useEffect, useState } from 'react'
 import { collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '../firebase'
 
+/**
+ * Hook voor stapgegevens per dag van huidige maand voor grafiek.
+ * @param {string} uid Gebruikers-ID
+ * @param {number} [refresh=0] Forced reload trigger
+ * @returns {{data:Array, laden:boolean}}
+ */
 export function useStappenGrafiek(uid, refresh = 0) {
   const [data, setData] = useState([])
   const [laden, setLaden] = useState(true)

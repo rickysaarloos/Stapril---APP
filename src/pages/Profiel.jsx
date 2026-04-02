@@ -1,3 +1,7 @@
+/**
+ * Profielpagina voor gebruikersstatistieken en badges.
+ * @returns {JSX.Element}
+ */
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../context/AuthContext'
@@ -12,21 +16,46 @@ const BADGE_DEF = [
   { id: 'volmaakte-april',  icon: '🏆', name: 'Volmaakte april',   desc: 'Alle 30 dagen het dagdoel gehaald' },
 ]
 
+/**
+ * Streefwaarden voor milestones op Profiel pagina.
+ * @type {number[]}
+ */
 const MILESTONES = [1000, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1_000_000]
 
+/**
+ * Berekent volgende milestone boven huidig aantal stappen.
+ * @param {number} steps Totale stappen
+ * @returns {number}
+ */
 function getNextMilestone(steps) {
   return MILESTONES.find(m => m > steps) ?? MILESTONES.at(-1)
 }
+/**
+ * Berekent vorige milestone onder huidig aantal stappen.
+ * @param {number} steps Totale stappen
+ * @returns {number}
+ */
 function getPrevMilestone(steps) {
   const idx = MILESTONES.findIndex(m => m > steps)
   return idx <= 0 ? 0 : MILESTONES[idx - 1]
 }
+
+/**
+ * Formatteert getallen voor Dutch locale.
+ * @param {number} n Getal
+ * @returns {string}
+ */
 function fmt(n) {
   return n.toLocaleString('nl-NL')
 }
 
 // ── Sub-components ─────────────────────────────────────────
 
+/**
+ * Sub-component voor één badge rij.
+ * @param {{badge:object, unlocked:boolean}} props
+ * @returns {JSX.Element}
+ */
 function BadgeRow({ badge, unlocked }) {
   return (
     <div className={`flex items-center gap-3.5 px-4 py-3.5 rounded-2xl border transition-colors
@@ -68,6 +97,10 @@ function BadgeRow({ badge, unlocked }) {
 
 // ── Main page ──────────────────────────────────────────────
 
+/**
+ * Profielpagina component toont totaalstappen, teaminformatie en badges.
+ * @returns {JSX.Element}
+ */
 export default function Profiel() {
   const { user } = useAuthContext()
   const navigate = useNavigate()

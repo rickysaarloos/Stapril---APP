@@ -1,3 +1,8 @@
+/**
+ * Beveiligde route component met loading- en role-check.
+ * @param {{children: React.ReactNode, adminOnly?: boolean}} props
+ * @returns {JSX.Element}
+ */
 import { Navigate } from 'react-router-dom'
 import { useAuthContext } from '../../context/AuthContext'
 

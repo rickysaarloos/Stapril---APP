@@ -1,3 +1,7 @@
+/**
+ * Pagina voor teambeheer: zoeken, aanmaken en verlaten.
+ * @returns {JSX.Element}
+ */
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../context/AuthContext'
@@ -32,6 +36,10 @@ export default function Team() {
   }, [user?.teamId])
 
   // ── Helpers ────────────────────────────────────────────────
+  /**
+   * Reset het teamformulier en schermstatus.
+   * @param {string} nieuwScherm Te tonen schermkey
+   */
   function reset(nieuwScherm) {
     setFout('')
     setCode('')

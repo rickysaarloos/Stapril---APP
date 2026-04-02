@@ -2,6 +2,10 @@ import { useState, useEffect } from 'react'
 import { collection, onSnapshot, query } from 'firebase/firestore'
 import { db } from '../firebase'
 
+/**
+ * Hook die teamklassement en laadstatus realtime bijhoudt via Firestore listeners.
+ * @returns {{klassement:Array, laden:boolean}}
+ */
 export function useKlassement() {
   const [klassement, setKlassement] = useState([])
   const [laden, setLaden] = useState(true)
