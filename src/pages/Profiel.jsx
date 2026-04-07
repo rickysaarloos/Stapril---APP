@@ -7,55 +7,39 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../context/AuthContext'
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '../firebase'
+import { useStepTracker } from '../hooks/useStepTracker'
+import { useBadges, ALLE_BADGES } from '../hooks/useBadges'
 
-const BADGE_DEF = [
-  { id: 'eerste-stap',      icon: '🥇', name: 'Eerste stap',      desc: 'Eerste keer stappen invoeren' },
-  { id: 'dagdoel',          icon: '🎯', name: 'Dagdoel gehaald',   desc: '10.000+ stappen op één dag' },
-  { id: 'week-op-rij',      icon: '🔥', name: 'Week op rij',       desc: '7 dagen achter elkaar dagdoel gehaald' },
-  { id: 'halve-maand',      icon: '🌗', name: 'Halve maand',       desc: '15 dagen dagdoel gehaald in april' },
-  { id: 'volmaakte-april',  icon: '🏆', name: 'Volmaakte april',   desc: 'Alle 30 dagen het dagdoel gehaald' },
-]
+const BADGE_DEF = ALLE_BADGES.map(b => ({
+  id: b.id,
+  icon: b.icoon,
+  name: b.naam,
+  desc: b.beschrijving,
+}))
 
-/**
- * Streefwaarden voor milestones op Profiel pagina.
- * @type {number[]}
- */
 const MILESTONES = [1000, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1_000_000]
 
-/**
- * Berekent volgende milestone boven huidig aantal stappen.
- * @param {number} steps Totale stappen
- * @returns {number}
- */
+const STATUS_LABELS = {
+  idle:        null,
+  requesting:  'Toestemming vragen...',
+  tracking:    'Live aan het tellen',
+  unsupported: 'Niet ondersteund op dit apparaat',
+  denied:      'Toestemming geweigerd',
+}
+
 function getNextMilestone(steps) {
   return MILESTONES.find(m => m > steps) ?? MILESTONES.at(-1)
 }
-/**
- * Berekent vorige milestone onder huidig aantal stappen.
- * @param {number} steps Totale stappen
- * @returns {number}
- */
 function getPrevMilestone(steps) {
   const idx = MILESTONES.findIndex(m => m > steps)
   return idx <= 0 ? 0 : MILESTONES[idx - 1]
 }
-
-/**
- * Formatteert getallen voor Dutch locale.
- * @param {number} n Getal
- * @returns {string}
- */
 function fmt(n) {
   return n.toLocaleString('nl-NL')
 }
 
 // ── Sub-components ─────────────────────────────────────────
 
-/**
- * Sub-component voor één badge rij.
- * @param {{badge:object, unlocked:boolean}} props
- * @returns {JSX.Element}
- */
 function BadgeRow({ badge, unlocked }) {
   return (
     <div className={`flex items-center gap-3.5 px-4 py-3.5 rounded-2xl border transition-colors
@@ -69,12 +53,10 @@ function BadgeRow({ badge, unlocked }) {
       >
         {badge.icon}
       </div>
-
       <div className="flex-1 min-w-0">
         <p className="text-white text-sm font-semibold truncate">{badge.name}</p>
         <p className="text-white/35 text-xs mt-0.5 truncate">{badge.desc}</p>
       </div>
-
       <div className="flex-shrink-0">
         {unlocked ? (
           <div className="w-5 h-5 rounded-full bg-[#84cc16] flex items-center justify-center">
@@ -95,20 +77,102 @@ function BadgeRow({ badge, unlocked }) {
   )
 }
 
+// ── Live stappen widget ────────────────────────────────────
+
+function LiveStappenCard({ uid }) {
+  const { stappen, status, startTracking, stopTracking, pct } = useStepTracker(uid)
+  const isTracking = status === 'tracking'
+  const isError = status === 'unsupported' || status === 'denied'
+
+  return (
+    <div className="relative mt-5 p-5 bg-white/[0.03] border border-white/[0.08] rounded-2xl overflow-hidden">
+      {/* Glow wanneer actief */}
+      {isTracking && (
+        <div className="absolute -top-6 -right-6 w-20 h-20 bg-[#84cc16]/15 rounded-full blur-2xl pointer-events-none animate-pulse" />
+      )}
+
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <p className="text-white/35 text-[10px] uppercase tracking-widest font-medium">
+            Stappen vandaag
+          </p>
+          <p className="text-white font-black text-4xl tracking-tighter leading-none mt-1">
+            {fmt(stappen)}
+          </p>
+          {STATUS_LABELS[status] && (
+            <div className="flex items-center gap-1.5 mt-1.5">
+              {isTracking && (
+                <span className="w-1.5 h-1.5 rounded-full bg-[#84cc16] animate-pulse" />
+              )}
+              <span className={`text-xs ${isError ? 'text-red-400' : 'text-white/35'}`}>
+                {STATUS_LABELS[status]}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Start / stop knop */}
+        {!isError && (
+          <button
+            onClick={isTracking ? stopTracking : startTracking}
+            className={`flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200
+              ${isTracking
+                ? 'bg-red-500/10 border border-red-500/25 text-red-400 hover:bg-red-500/20'
+                : 'bg-[#84cc16]/10 border border-[#84cc16]/25 text-[#84cc16] hover:bg-[#84cc16]/20'
+              }`}
+          >
+            {isTracking ? (
+              <>
+                <span className="w-2 h-2 rounded-sm bg-red-400" />
+                Stop
+              </>
+            ) : (
+              <>
+                <span className="w-2 h-2 rounded-full bg-[#84cc16]" />
+                Start
+              </>
+            )}
+          </button>
+        )}
+      </div>
+
+      {/* Voortgangsbalk naar dagdoel */}
+      <div>
+        <div className="flex justify-between text-xs text-white/30 mb-2">
+          <span>Dagdoel</span>
+          <span className="text-white/50">{pct}% van 10.000</span>
+        </div>
+        <div className="h-1.5 bg-white/[0.08] rounded-full overflow-hidden">
+          <div
+            className="h-full bg-[#84cc16] rounded-full transition-all duration-300"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Foutmelding */}
+      {isError && (
+        <p className="mt-3 text-xs text-red-400/70 bg-red-500/5 border border-red-500/15 rounded-xl px-3 py-2">
+          {status === 'unsupported'
+            ? 'Je apparaat ondersteunt geen bewegingssensor via de browser.'
+            : 'Geef toestemming voor de bewegingssensor in je browserinstellingen.'
+          }
+        </p>
+      )}
+    </div>
+  )
+}
+
 // ── Main page ──────────────────────────────────────────────
 
-/**
- * Profielpagina component toont totaalstappen, teaminformatie en badges.
- * @returns {JSX.Element}
- */
 export default function Profiel() {
   const { user } = useAuthContext()
   const navigate = useNavigate()
 
   const [totalSteps, setTotalSteps] = useState(0)
-  const [badges, setBadges] = useState([])
   const [teamNaam, setTeamNaam] = useState('')
   const [laden, setLaden] = useState(true)
+  const { verdiendeBadges, loading: badgesLaden } = useBadges(user?.uid)
 
   useEffect(() => {
     if (!user?.uid) return
@@ -119,7 +183,6 @@ export default function Profiel() {
         const data = snap.data() ?? {}
 
         setTotalSteps(data.totalSteps ?? 0)
-        setBadges(data.badges ?? [])
 
         if (data.teamId) {
           const teamSnap = await getDoc(doc(db, 'teams', data.teamId))
@@ -138,11 +201,11 @@ export default function Profiel() {
   const next = getNextMilestone(totalSteps)
   const prev = getPrevMilestone(totalSteps)
   const pct = next === prev ? 100 : Math.round(((totalSteps - prev) / (next - prev)) * 100)
-  const earnedCount = BADGE_DEF.filter(b => badges.includes(b.id)).length
+  const earnedCount = BADGE_DEF.filter(b => verdiendeBadges[b.id]).length
   const initials = (user?.displayName ?? user?.email ?? 'U')
     .split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
 
-  if (laden) {
+  if (laden || badgesLaden) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
         <div className="w-5 h-5 border-2 border-[#84cc16]/30 border-t-[#84cc16] rounded-full animate-spin" />
@@ -152,7 +215,6 @@ export default function Profiel() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a]">
-      {/* Ambient glow */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#84cc16]/[0.04] rounded-full blur-3xl" />
       </div>
@@ -177,11 +239,12 @@ export default function Profiel() {
           </div>
         </div>
 
-        {/* Total steps */}
-        <div className="relative mt-5 p-5 bg-white/[0.03] border border-white/[0.08] rounded-2xl overflow-hidden">
-          {/* glow blob */}
-          <div className="absolute -top-8 -right-8 w-24 h-24 bg-[#84cc16]/10 rounded-full blur-2xl pointer-events-none" />
+        {/* Live stappen widget — nieuw */}
+        <LiveStappenCard uid={user?.uid} />
 
+        {/* Total steps */}
+        <div className="relative mt-4 p-5 bg-white/[0.03] border border-white/[0.08] rounded-2xl overflow-hidden">
+          <div className="absolute -top-8 -right-8 w-24 h-24 bg-[#84cc16]/10 rounded-full blur-2xl pointer-events-none" />
           <p className="text-white/35 text-[10px] uppercase tracking-widest mb-2 font-medium">
             Totale stappen aller tijden
           </p>
@@ -192,8 +255,6 @@ export default function Profiel() {
             <span className="w-1.5 h-1.5 rounded-full bg-[#84cc16]" />
             <span className="text-white/35 text-xs">stappen geteld</span>
           </div>
-
-          {/* Progress to next milestone */}
           <div className="mt-4 pt-4 border-t border-white/[0.07]">
             <div className="flex justify-between text-xs text-white/30 mb-2">
               <span>Volgende mijlpaal</span>
@@ -214,13 +275,12 @@ export default function Profiel() {
             <h2 className="text-white font-black text-base tracking-tight">Badges</h2>
             <span className="text-white/30 text-xs">{earnedCount} / {BADGE_DEF.length} behaald</span>
           </div>
-
           <div className="space-y-2">
             {BADGE_DEF.map(badge => (
               <BadgeRow
                 key={badge.id}
                 badge={badge}
-                unlocked={badges.includes(badge.id)}
+              unlocked={!!verdiendeBadges[badge.id]}
               />
             ))}
           </div>
