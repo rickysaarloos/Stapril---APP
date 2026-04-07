@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom'
 import { collection, getDocs, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuthContext } from '../context/AuthContext'
+import { deleteDoc } from 'firebase/firestore'
 
 export default function AdminPanel() {
   const { user, logout } = useAuthContext()
@@ -75,6 +76,31 @@ export default function AdminPanel() {
     }
     laadData()
   }, [])
+  async function handleVerwijderTeam(teamId) {
+  if (!confirm('Weet je zeker dat je dit team wilt verwijderen?')) return
+
+  try {
+    const usersSnap = await getDocs(collection(db, 'users'))
+
+    const updates = usersSnap.docs
+      .filter(docSnap => docSnap.data().teamId === teamId)
+      .map(docSnap =>
+        updateDoc(doc(db, 'users', docSnap.id), {
+          teamId: null
+        })
+      )
+
+    await Promise.all(updates)
+
+    await deleteDoc(doc(db, 'teams', teamId))
+
+    setTeams(prev => prev.filter(t => t.id !== teamId))
+
+  } catch (err) {
+    console.error(err)
+    setFout('Verwijderen van team mislukt.')
+  }
+}
 
   async function handleRolWijzigen(uid, nieuweRol) {
     try {
@@ -384,6 +410,12 @@ export default function AdminPanel() {
                   <p className="text-[#84cc16] text-sm font-black shrink-0">
                     {team.totaalStappen.toLocaleString('nl-NL')}
                   </p>
+                  <button
+  onClick={() => handleVerwijderTeam(team.id)}
+  className="text-xs text-red-400/70 hover:text-red-400 border border-red-500/20 hover:border-red-500/40 rounded-lg px-3 py-1.5 transition-colors"
+>
+  Verwijderen
+</button>
                 </div>
               ))}
             </div>

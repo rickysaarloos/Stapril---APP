@@ -8,13 +8,14 @@ import {
   setDoc,
   updateDoc,
   arrayUnion,
+  serverTimestamp,
 } from 'firebase/firestore'
 import { db } from '../firebase'
- 
+
 // ── Join-code generator ───────────────────────────────────────────────────────
- 
+
 const WOORDEN = ['STAP', 'TEAM', 'LOOP', 'APRIL', 'FIT', 'RUN', 'MOVE', 'GO']
- 
+
 /**
  * Genereert een willekeurige join-code (bijv. APRIL42).
  * @returns {string}
@@ -24,7 +25,7 @@ function genereerCode() {
   const getal = Math.floor(10 + Math.random() * 90) // 10–99
   return `${woord}${getal}`
 }
- 
+
 /**
  * Genereert een unieke join-code die nog niet bestaat in Firestore.
  * @returns {Promise<string>}
@@ -39,7 +40,7 @@ async function uniekCode() {
   } while (await codeBestaatAl(code))
   return code
 }
- 
+
 /**
  * Controleert of een join-code al in gebruik is.
  * @param {string} code Join-code
@@ -50,9 +51,9 @@ async function codeBestaatAl(code) {
   const snap = await getDocs(q)
   return !snap.empty
 }
- 
+
 // ── Team aanmaken ─────────────────────────────────────────────────────────────
- 
+
 /**
  * Maakt een nieuw team aan in Firestore en voegt de aanmaker toe als lid.
  * Geeft het nieuwe team-object terug { id, naam, joinCode, ... }.
@@ -60,23 +61,23 @@ async function codeBestaatAl(code) {
 export async function maakTeamAan(uid, teamnaam) {
   const joinCode = await uniekCode()
   const teamRef = doc(collection(db, 'teams'))
- 
+
   await setDoc(teamRef, {
     naam: teamnaam.trim(),
     joinCode,
     leden: [uid],
-    aangemaaktOp: new Date().toISOString(),
+    gemaaktOp: serverTimestamp(), // ✅ FIX
     aangemaaktDoor: uid,
   })
- 
+
   // Koppel teamId aan gebruiker
-  await updateDoc(doc(db, 'users', uid), { teamId: teamRef.id })
- 
+await setDoc(doc(db, 'users', uid), { teamId: teamRef.id }, { merge: true })
+
   return { id: teamRef.id, naam: teamnaam.trim(), joinCode, leden: [uid] }
 }
- 
+
 // ── Team aansluiten ───────────────────────────────────────────────────────────
- 
+
 /**
  * Zoek een team op via de join-code.
  * Geeft het team-document terug { id, ...data } of null als niet gevonden.
@@ -91,7 +92,7 @@ export async function zoekTeamOpCode(code) {
   const d = snap.docs[0]
   return { id: d.id, ...d.data() }
 }
- 
+
 /**
  * Voeg een gebruiker toe aan een bestaand team.
  */
@@ -99,7 +100,7 @@ export async function sluitAanBijTeam(uid, teamId) {
   await updateDoc(doc(db, 'users', uid), { teamId })
   await updateDoc(doc(db, 'teams', teamId), { leden: arrayUnion(uid) })
 }
- 
+
 /**
  * Haal een team op via zijn ID.
  */
@@ -109,8 +110,11 @@ export async function laadTeam(teamId) {
   return snap.exists() ? { id: snap.id, ...snap.data() } : null
 }
 
+// ── Team details ──────────────────────────────────────────────────────────────
 
-// Laad alle leden van een team
+/**
+ * Laad team + alle leden (user data)
+ */
 export async function laadTeamDetails(teamId) {
   const teamSnap = await getDoc(doc(db, 'teams', teamId))
   if (!teamSnap.exists()) return null
@@ -125,7 +129,11 @@ export async function laadTeamDetails(teamId) {
   return { ...teamData, leden }
 }
 
-// Verlaat een team
+// ── Team verlaten ─────────────────────────────────────────────────────────────
+
+/**
+ * Verlaat een team
+ */
 export async function verlatenTeam(uid) {
   await updateDoc(doc(db, 'users', uid), { teamId: null })
 }

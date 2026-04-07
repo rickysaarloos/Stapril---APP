@@ -36,10 +36,6 @@ export default function Team() {
   }, [user?.teamId])
 
   // ── Helpers ────────────────────────────────────────────────
-  /**
-   * Reset het teamformulier en schermstatus.
-   * @param {string} nieuwScherm Te tonen schermkey
-   */
   function reset(nieuwScherm) {
     setFout('')
     setCode('')
@@ -85,9 +81,10 @@ export default function Team() {
       const team = await maakTeamAan(user.uid, teamnaam)
       setNieuwTeam(team)
       setScherm('succes-aangemaakt')
-    } catch {
-      setFout('Fout bij aanmaken.')
-    } finally {
+    } catch (err) {
+  console.error(err) // 👈 dit is de key
+  setFout('Fout bij aanmaken.')
+} finally {
       setLaden(false)
     }
   }
@@ -105,22 +102,22 @@ export default function Team() {
   }
 
   // ── Subcomponents ──────────────────────────────────────────
-  const BackButton = ({ onClick }) => (
+  const BackButton = ({ onClick, className = '' }) => (
     <button
       type="button"
       onClick={onClick}
-      className="w-full text-white/30 hover:text-white/60 text-sm font-medium py-2 transition-colors duration-200"
+      className={`text-white/30 hover:text-white/60 text-sm font-medium py-2 transition-colors duration-200 hover:underline ${className}`}
     >
       ← Terug
     </button>
   )
 
-  const PrimaryButton = ({ onClick, type = 'button', disabled, children }) => (
+  const PrimaryButton = ({ onClick, type = 'button', disabled, children, className = '' }) => (
     <button
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className="w-full bg-[#84cc16] hover:bg-[#95d926] active:bg-[#74b312] disabled:bg-[#84cc16]/40 disabled:cursor-not-allowed text-[#0a0a0a] text-sm font-bold rounded-xl py-3.5 transition-all duration-150 shadow-lg shadow-[#84cc16]/20"
+      className={`w-full bg-[#84cc16] hover:bg-[#95d926] active:bg-[#74b312] disabled:bg-[#84cc16]/40 disabled:cursor-not-allowed text-[#0a0a0a] text-sm font-bold rounded-xl py-4 transition-all duration-150 shadow-lg shadow-[#84cc16]/20 hover:scale-[1.01] active:scale-[0.99] ${className}`}
     >
       {disabled ? (
         <span className="flex items-center justify-center gap-2">
@@ -134,125 +131,230 @@ export default function Team() {
     </button>
   )
 
-  const TextInput = ({ value, onChange, placeholder, autoFocus }) => (
+  const SecondaryButton = ({ onClick, children, className = '', ...props }) => (
+    <button
+      onClick={onClick}
+      className={`w-full bg-white/5 hover:bg-white/[0.08] border border-white/10 hover:border-white/20 text-white/70 hover:text-white text-sm font-medium rounded-xl py-4 transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] ${className}`}
+      {...props}
+    >
+      {children}
+    </button>
+  )
+
+  const TextInput = ({ value, onChange, placeholder, autoFocus, type = 'text' }) => (
     <input
+      type={type}
       value={value}
       onChange={onChange}
       placeholder={placeholder}
       autoFocus={autoFocus}
-      className="w-full bg-white/[0.04] hover:bg-white/[0.06] focus:bg-white/[0.06] border border-white/10 focus:border-[#84cc16]/50 rounded-xl px-4 py-3.5 text-white text-sm placeholder:text-white/25 outline-none transition-all duration-200 caret-[#84cc16]"
+      className="w-full bg-white/[0.04] hover:bg-white/[0.06] focus:bg-white/[0.08] border border-white/10 focus:border-[#84cc16]/50 rounded-xl px-5 py-4 text-white text-base placeholder:text-white/25 outline-none transition-all duration-200 caret-[#84cc16]"
     />
   )
 
   const ErrorMsg = ({ msg }) => msg ? (
-    <p className="text-red-400/90 text-xs font-medium flex items-center gap-1.5">
-      <span>✕</span> {msg}
+    <p className="text-red-400/90 text-sm font-medium flex items-center gap-2 animate-fade-in">
+      <span className="text-red-400">✕</span> {msg}
     </p>
   ) : null
 
-  // ── Al in een team → team details pagina ──────────────────
+  const SectionHeader = ({ icon, title, description }) => (
+    <div className="animate-fade-in space-y-2">
+      <div className="flex items-center gap-3">
+        <div className="w-12 h-12 rounded-xl bg-[#84cc16]/10 border border-[#84cc16]/20 flex items-center justify-center flex-shrink-0">
+          <span className="text-[#84cc16] text-xl">{icon}</span>
+        </div>
+        <div>
+          <h2 className="text-white text-2xl font-bold tracking-tight">{title}</h2>
+          {description && <p className="text-white/40 text-sm">{description}</p>}
+        </div>
+      </div>
+    </div>
+  )
+
+  // ── Al in een team → team details pagina (2-koloms layout) ──────────────────
   if (user?.teamId) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-6">
-        <div className="fixed inset-0 pointer-events-none">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-[#84cc16]/5 rounded-full blur-3xl" />
+      <div className="min-h-screen bg-[#0a0a0a] text-white">
+        {/* Animated background */}
+        <div className="fixed inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute top-1/4 left-1/4 w-[600px] h-[600px] bg-[#84cc16]/[0.03] rounded-full blur-3xl animate-pulse" />
+          <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-[#84cc16]/[0.02] rounded-full blur-3xl" />
         </div>
 
-        <div className="relative w-full max-w-sm space-y-3">
-
-          {/* Hoofdkaart */}
-          <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-8 space-y-6 backdrop-blur-sm">
-
-            {/* Header */}
+        <div className="relative max-w-6xl mx-auto px-6 py-10 space-y-8">
+          
+          {/* Navbar */}
+          <header className="animate-slide-down flex items-center justify-between pb-6 border-b border-white/5">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#84cc16]/10 border border-[#84cc16]/20 flex items-center justify-center">
-                <span className="text-[#84cc16] text-lg">⬡</span>
-              </div>
-              <div>
-                <h2 className="text-white font-bold text-lg leading-tight">
-                  {detailLaden ? '…' : (teamDetails?.naam ?? user.teamId)}
-                </h2>
-                <p className="text-white/30 text-xs">Jouw team</p>
-              </div>
+              <span className="text-[#84cc16] text-2xl leading-none">⬡</span>
+              <span className="text-white font-bold tracking-widest uppercase text-sm">Stapril</span>
             </div>
-
-            {/* Join-code */}
-            {teamDetails?.joinCode && (
-              <div className="bg-white/[0.03] border border-white/10 rounded-xl py-3 px-4">
-                <p className="text-white/30 text-xs uppercase tracking-widest mb-1">Join-code</p>
-                <p className="text-[#84cc16] text-2xl font-black tracking-wider font-mono">
-                  {teamDetails.joinCode}
-                </p>
-              </div>
-            )}
-
-            {/* Leden */}
-            <div className="space-y-2">
-              <p className="text-white/30 text-xs uppercase tracking-widest">
-                Leden ({detailLaden ? '…' : (teamDetails?.leden?.length ?? '?')})
-              </p>
-              {detailLaden ? (
-                <p className="text-white/20 text-sm">Laden…</p>
-              ) : (
-                <ul className="space-y-2">
-                  {teamDetails?.leden?.map(lid => (
-                    <li key={lid.uid} className="flex items-center gap-3">
-                      <div className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-xs text-white/40 font-bold">
-                        {(lid.naam ?? lid.email ?? '?')[0].toUpperCase()}
-                      </div>
-                      <div>
-                        <p className="text-white/80 text-sm leading-tight">{lid.naam ?? lid.email}</p>
-                        {lid.naam && <p className="text-white/25 text-xs">{lid.email}</p>}
-                      </div>
-                      {lid.uid === user.uid && (
-                        <span className="ml-auto text-[10px] text-[#84cc16]/60 uppercase tracking-widest">jij</span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-
-          {/* Acties */}
-          <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4 space-y-2 backdrop-blur-sm">
             <button
               onClick={() => navigate('/dashboard')}
-              className="w-full bg-white/5 hover:bg-white/[0.08] border border-white/10 text-white/70 hover:text-white text-sm font-medium rounded-xl py-3 transition-all"
+              className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-4 py-2 hover:bg-white/[0.04]"
             >
-              ← Terug naar dashboard
+              ← Dashboard
             </button>
+          </header>
 
-            {!toonBevestiging ? (
-              <button
-                onClick={() => setToonBevestiging(true)}
-                className="w-full text-red-400/60 hover:text-red-400 hover:bg-red-500/5 border border-transparent hover:border-red-500/20 text-sm font-medium rounded-xl py-3 transition-all"
-              >
-                Team verlaten
-              </button>
-            ) : (
-              <div className="bg-red-500/[0.06] border border-red-500/20 rounded-xl p-4 space-y-3">
-                <p className="text-red-400/80 text-sm text-center">Weet je het zeker?</p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setToonBevestiging(false)}
-                    className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white/50 text-sm rounded-lg py-2.5 transition-all"
-                  >
-                    Annuleren
-                  </button>
-                  <button
-                    onClick={handleVerlaten}
-                    disabled={verlatenLaden}
-                    className="flex-1 bg-red-500/20 hover:bg-red-500/30 disabled:opacity-50 border border-red-500/30 text-red-400 text-sm font-bold rounded-lg py-2.5 transition-all"
-                  >
-                    {verlatenLaden ? 'Bezig…' : 'Ja, verlaten'}
-                  </button>
-                </div>
-              </div>
-            )}
+          {/* Page header */}
+          <div className="animate-fade-in">
+            <p className="text-[#84cc16] text-xs tracking-[0.2em] uppercase mb-2">teamoverzicht</p>
+            <h1 className="text-4xl font-black tracking-tight">Jouw Team</h1>
           </div>
 
-          <p className="text-center text-white/15 text-xs tracking-wide">Stapril</p>
+          {/* Main grid: 2 columns on large screens */}
+          <div className="grid lg:grid-cols-3 gap-6 animate-fade-in-delay-1">
+            
+            {/* Left: Team info & join code */}
+            <div className="lg:col-span-2 space-y-6">
+              
+              {/* Team card */}
+              <div className="bg-white/[0.03] border border-white/[0.08] rounded-3xl p-8 backdrop-blur-sm hover:border-[#84cc16]/20 transition-colors duration-300">
+                <div className="flex items-start justify-between mb-6">
+                  <div>
+                    <h3 className="text-white font-bold text-xl">
+                      {detailLaden ? 'Laden…' : (teamDetails?.naam ?? user.teamId)}
+                    </h3>
+                    <p className="text-white/40 text-sm mt-1">Team-ID: <span className="font-mono text-white/60">{user.teamId}</span></p>
+                  </div>
+                  <div className="w-14 h-14 rounded-2xl bg-[#84cc16]/10 border border-[#84cc16]/20 flex items-center justify-center">
+                    <span className="text-[#84cc16] text-2xl">⬡</span>
+                  </div>
+                </div>
+
+                {/* Join code */}
+                {teamDetails?.joinCode && (
+                  <div className="bg-[#84cc16]/[0.06] border border-[#84cc16]/20 rounded-2xl p-6">
+                    <p className="text-[#84cc16]/70 text-xs uppercase tracking-widest mb-2 font-medium">Deel deze join-code</p>
+                    <div className="flex items-center gap-4">
+                      <p className="text-[#84cc16] text-4xl font-black tracking-[0.15em] font-mono">
+                        {teamDetails.joinCode}
+                      </p>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(teamDetails.joinCode)}
+                        className="text-xs text-white/50 hover:text-[#84cc16] border border-white/10 hover:border-[#84cc16]/30 rounded-lg px-3 py-1.5 transition-all"
+                      >
+                        Kopiëren
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Members list */}
+              <div className="bg-white/[0.03] border border-white/[0.08] rounded-3xl p-8 backdrop-blur-sm">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-white font-bold text-lg">Teamleden</h3>
+                  <span className="text-sm text-white/40 bg-white/[0.04] px-3 py-1 rounded-full">
+                    {detailLaden ? '…' : (teamDetails?.leden?.length ?? 0)}
+                  </span>
+                </div>
+
+                {detailLaden ? (
+                  <div className="space-y-3">
+                    {[1,2,3].map(i => (
+                      <div key={i} className="flex items-center gap-4 p-4 bg-white/[0.02] rounded-xl animate-pulse">
+                        <div className="w-12 h-12 rounded-xl bg-white/5" />
+                        <div className="flex-1 space-y-2">
+                          <div className="h-4 bg-white/5 rounded w-32" />
+                          <div className="h-3 bg-white/5 rounded w-24" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {teamDetails?.leden?.map(lid => (
+                      <div
+                        key={lid.uid}
+                        className="flex items-center gap-4 p-4 bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 hover:border-white/10 rounded-xl transition-all duration-200 group"
+                      >
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#84cc16]/20 to-white/5 border border-white/10 flex items-center justify-center text-white font-bold text-lg group-hover:scale-105 transition-transform">
+                          {(lid.naam ?? lid.email ?? '?')[0].toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white/90 font-medium text-sm truncate">{lid.naam ?? lid.email}</p>
+                          {lid.naam && <p className="text-white/30 text-xs truncate">{lid.email}</p>}
+                        </div>
+                        {lid.uid === user.uid && (
+                          <span className="text-[10px] font-black uppercase tracking-widest bg-[#84cc16]/20 text-[#84cc16] px-2.5 py-1 rounded-full">
+                            Jij
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right: Actions sidebar */}
+            <div className="space-y-4">
+              
+              {/* Quick stats */}
+              <div className="bg-white/[0.03] border border-white/[0.08] rounded-3xl p-6 backdrop-blur-sm">
+                <h4 className="text-white/60 text-xs uppercase tracking-widest mb-4">Snelle info</h4>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/40 text-sm">Gemaakt op</span>
+                    <span className="text-white/80 text-sm font-medium">
+                      {(() => {
+  const d = teamDetails?.gemaaktOp
+  if (!d) return '—'
+  if (typeof d.toDate === 'function') return d.toDate().toLocaleDateString('nl-NL')
+  if (d instanceof Date) return d.toLocaleDateString('nl-NL')
+  return '—'
+})()}
+                    </span>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Leave team card */}
+              <div className="bg-white/[0.03] border border-white/[0.08] rounded-3xl p-6 backdrop-blur-sm">
+                <h4 className="text-white font-bold mb-4">Teambeheer</h4>
+                
+                {!toonBevestiging ? (
+                  <button
+                    onClick={() => setToonBevestiging(true)}
+                    className="w-full text-red-400/70 hover:text-red-400 hover:bg-red-500/5 border border-transparent hover:border-red-500/20 text-sm font-medium rounded-xl py-3.5 transition-all text-left px-4 hover:scale-[1.01] active:scale-[0.99]"
+                  >
+                    Team verlaten
+                  </button>
+                ) : (
+                  <div className="bg-red-500/[0.06] border border-red-500/20 rounded-xl p-4 space-y-4">
+                    <p className="text-red-400/90 text-sm">Weet je zeker dat je dit team wilt verlaten?</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setToonBevestiging(false)}
+                        className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 text-sm rounded-lg py-2.5 transition-all"
+                      >
+                        Annuleren
+                      </button>
+                      <button
+                        onClick={handleVerlaten}
+                        disabled={verlatenLaden}
+                        className="flex-1 bg-red-500/20 hover:bg-red-500/30 disabled:opacity-50 border border-red-500/30 text-red-400 text-sm font-bold rounded-lg py-2.5 transition-all"
+                      >
+                        {verlatenLaden ? 'Bezig…' : 'Verlaten'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Back to dashboard */}
+              <SecondaryButton onClick={() => navigate('/dashboard')}>
+                ← Terug naar dashboard
+              </SecondaryButton>
+
+            </div>
+          </div>
+
+          <p className="text-center text-white/15 text-xs tracking-wide pt-8">Stapril</p>
         </div>
       </div>
     )
@@ -260,39 +362,56 @@ export default function Team() {
 
   // ── Nog geen team → aanmaken / aansluiten ─────────────────
   return (
-    <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-6">
+    <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center p-6">
+      {/* Animated background */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#84cc16]/[0.04] rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-[#84cc16]/[0.03] rounded-full blur-3xl" />
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-[#84cc16]/[0.04] rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-[#84cc16]/[0.03] rounded-full blur-3xl" />
       </div>
 
-      <div className="relative w-full max-w-sm">
-        <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-8 backdrop-blur-sm">
+      <div className="relative w-full max-w-2xl animate-fade-in">
+        <div className="flex justify-end mb-4">
+  <button
+    onClick={() => navigate('/dashboard')}
+    className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-4 py-2 hover:bg-white/[0.04]"
+  >
+    ← Dashboard
+  </button>
+</div>
+        <div className="bg-white/[0.03] border border-white/[0.08] rounded-3xl p-10 backdrop-blur-sm space-y-8">
 
           {/* KEUZE */}
           {scherm === 'keuze' && (
-            <div className="space-y-6">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="text-[#84cc16] text-lg">⬡</span>
-                </div>
-                <h2 className="text-white text-2xl font-bold tracking-tight">Team</h2>
-                <p className="text-white/35 text-sm">Maak een nieuw team aan of sluit je aan bij een bestaand team.</p>
-              </div>
-              <div className="space-y-3 pt-1">
+            <div className="space-y-8">
+              <SectionHeader
+                icon="⬡"
+                title="Team"
+                description="Maak een nieuw team aan of sluit je aan bij een bestaand team met een join-code."
+              />
+              
+              <div className="grid sm:grid-cols-2 gap-4 pt-2">
                 <button
                   onClick={() => reset('aanmaken')}
-                  className="w-full bg-[#84cc16] hover:bg-[#95d926] active:bg-[#74b312] text-[#0a0a0a] text-sm font-bold rounded-xl py-3.5 transition-all duration-150 shadow-lg shadow-[#84cc16]/20 text-left px-5 flex items-center justify-between group"
+                  className="group bg-[#84cc16] hover:bg-[#95d926] active:bg-[#74b312] text-[#0a0a0a] rounded-2xl p-6 text-left transition-all duration-200 shadow-lg shadow-[#84cc16]/20 hover:scale-[1.02] active:scale-[0.98] border-2 border-transparent hover:border-[#84cc16]/30"
                 >
-                  <span>Team aanmaken</span>
-                  <span className="opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-150">→</span>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-3xl">✨</span>
+                    <span className="opacity-60 group-hover:opacity-100 group-hover:translate-x-1 transition-all text-xl">→</span>
+                  </div>
+                  <h3 className="font-bold text-lg mb-1">Team aanmaken</h3>
+                  <p className="text-[#0a0a0a]/60 text-sm">Start een nieuw team en nodig anderen uit</p>
                 </button>
+                
                 <button
                   onClick={() => reset('aansluiten')}
-                  className="w-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 text-white/70 hover:text-white text-sm font-medium rounded-xl py-3.5 transition-all duration-200 text-left px-5 flex items-center justify-between group"
+                  className="group bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 text-white/80 hover:text-white rounded-2xl p-6 text-left transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
                 >
-                  <span>Aansluiten bij team</span>
-                  <span className="opacity-40 group-hover:opacity-70 group-hover:translate-x-0.5 transition-all duration-150">→</span>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-3xl">🔗</span>
+                    <span className="opacity-40 group-hover:opacity-70 group-hover:translate-x-1 transition-all text-xl">→</span>
+                  </div>
+                  <h3 className="font-bold text-lg mb-1">Aansluiten</h3>
+                  <p className="text-white/40 text-sm">Voer een join-code in om lid te worden</p>
                 </button>
               </div>
             </div>
@@ -300,108 +419,137 @@ export default function Team() {
 
           {/* AANMAKEN */}
           {scherm === 'aanmaken' && (
-            <form onSubmit={handleTeamAanmaken} className="space-y-5">
-              <div className="space-y-1">
-                <h2 className="text-white text-xl font-bold tracking-tight">Team aanmaken</h2>
-                <p className="text-white/35 text-sm">Geef je team een naam.</p>
-              </div>
-              <div className="space-y-3">
-                <TextInput value={teamnaam} onChange={(e) => setTeamnaam(e.target.value)} placeholder="Teamnaam" autoFocus />
+            <form onSubmit={handleTeamAanmaken} className="space-y-6">
+              <SectionHeader
+                icon="✨"
+                title="Team aanmaken"
+                description="Geef je team een herkenbare naam."
+              />
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-white/50 text-xs uppercase tracking-widest mb-2">Teamnaam</label>
+                  <TextInput value={teamnaam} onChange={(e) => setTeamnaam(e.target.value)} placeholder="Bijv. Marketing Q2" autoFocus />
+                </div>
                 <ErrorMsg msg={fout} />
               </div>
-              <div className="space-y-2">
-                <PrimaryButton type="submit" disabled={laden}>Aanmaken</PrimaryButton>
-                <BackButton onClick={() => reset('keuze')} />
+              <div className="flex gap-3 pt-2">
+                <PrimaryButton type="submit" disabled={laden} className="flex-1">Aanmaken</PrimaryButton>
+                <BackButton onClick={() => reset('keuze')} className="self-center" />
               </div>
             </form>
           )}
 
           {/* AANSLUITEN */}
           {scherm === 'aansluiten' && (
-            <form onSubmit={handleZoekTeam} className="space-y-5">
-              <div className="space-y-1">
-                <h2 className="text-white text-xl font-bold tracking-tight">Aansluiten</h2>
-                <p className="text-white/35 text-sm">Voer de join-code van je team in.</p>
-              </div>
-              <div className="space-y-3">
-                <TextInput value={code} onChange={(e) => setCode(e.target.value)} placeholder="Join-code" autoFocus />
+            <form onSubmit={handleZoekTeam} className="space-y-6">
+              <SectionHeader
+                icon="🔗"
+                title="Aansluiten bij team"
+                description="Voer de 6-cijferige join-code in die je hebt ontvangen."
+              />
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-white/50 text-xs uppercase tracking-widest mb-2">Join-code</label>
+                  <TextInput 
+                    value={code} 
+                    onChange={(e) => setCode(e.target.value.toUpperCase())} 
+                    placeholder="XXXXXX" 
+                    autoFocus 
+                    type="text"
+                    maxLength={6}
+                  />
+                  <p className="text-white/25 text-xs mt-2 font-mono">Code is niet hoofdlettergevoelig</p>
+                </div>
                 <ErrorMsg msg={fout} />
               </div>
-              <div className="space-y-2">
-                <PrimaryButton type="submit" disabled={laden}>Team zoeken</PrimaryButton>
-                <BackButton onClick={() => reset('keuze')} />
+              <div className="flex gap-3 pt-2">
+                <PrimaryButton type="submit" disabled={laden} className="flex-1">Team zoeken</PrimaryButton>
+                <BackButton onClick={() => reset('keuze')} className="self-center" />
               </div>
             </form>
           )}
 
           {/* BEVESTIG */}
           {scherm === 'bevestig' && gevondenTeam && (
-            <div className="space-y-5">
-              <div className="space-y-1">
-                <h2 className="text-white text-xl font-bold tracking-tight">Team gevonden</h2>
-                <p className="text-white/35 text-sm">Wil je je aansluiten bij dit team?</p>
-              </div>
-              <div className="bg-[#84cc16]/[0.06] border border-[#84cc16]/20 rounded-xl px-5 py-4 flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-[#84cc16]/15 flex items-center justify-center flex-shrink-0">
-                  <span className="text-[#84cc16] text-base leading-none">⬡</span>
+            <div className="space-y-6">
+              <SectionHeader
+                icon="✓"
+                title="Team gevonden"
+                description="Wil je je aansluiten bij dit team?"
+              />
+              
+              <div className="bg-[#84cc16]/[0.08] border border-[#84cc16]/25 rounded-2xl p-6 flex items-center gap-4 hover:border-[#84cc16]/40 transition-colors">
+                <div className="w-14 h-14 rounded-xl bg-[#84cc16]/15 border border-[#84cc16]/30 flex items-center justify-center flex-shrink-0">
+                  <span className="text-[#84cc16] text-2xl">⬡</span>
                 </div>
-                <div>
-                  <p className="text-white font-semibold text-sm">{gevondenTeam.naam}</p>
-                  <p className="text-white/35 text-xs mt-0.5">{gevondenTeam.id}</p>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-bold text-lg">{gevondenTeam.naam}</p>
+                  <p className="text-white/40 text-sm font-mono mt-0.5">{gevondenTeam.id}</p>
                 </div>
               </div>
+              
               <ErrorMsg msg={fout} />
-              <div className="space-y-2">
-                <PrimaryButton onClick={handleAansluiten} disabled={laden}>Aansluiten</PrimaryButton>
-                <BackButton onClick={() => reset('aansluiten')} />
+              
+              <div className="flex gap-3 pt-2">
+                <PrimaryButton onClick={handleAansluiten} disabled={laden} className="flex-1">Aansluiten</PrimaryButton>
+                <BackButton onClick={() => reset('aansluiten')} className="self-center" />
               </div>
             </div>
           )}
 
           {/* SUCCES AANGEMAAKT */}
           {scherm === 'succes-aangemaakt' && nieuwTeam && (
-            <div className="space-y-6 text-center">
-              <div className="space-y-3">
-                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#84cc16]/10 border border-[#84cc16]/25 mx-auto">
-                  <span className="text-[#84cc16] text-2xl">✓</span>
+            <div className="space-y-8 text-center">
+              <div className="space-y-4 animate-fade-in">
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-[#84cc16]/10 border border-[#84cc16]/25 mx-auto shadow-lg shadow-[#84cc16]/10">
+                  <span className="text-[#84cc16] text-4xl">✓</span>
                 </div>
                 <div>
-                  <h2 className="text-white text-xl font-bold tracking-tight">Team aangemaakt!</h2>
-                  <p className="text-white/35 text-sm mt-1">Deel deze code met je teamleden.</p>
+                  <h2 className="text-white text-2xl font-bold tracking-tight">Team aangemaakt!</h2>
+                  <p className="text-white/40 text-sm mt-2 max-w-sm mx-auto">Deel deze code met je teamleden zodat ze kunnen aansluiten.</p>
                 </div>
               </div>
-              <div className="bg-white/[0.03] border border-white/10 rounded-xl py-4 px-5">
-                <p className="text-white/30 text-xs uppercase tracking-widest mb-2 font-medium">Join-code</p>
-                <p className="text-[#84cc16] text-3xl font-black tracking-wider font-mono">{nieuwTeam.joinCode}</p>
+              
+              <div className="bg-white/[0.04] border border-white/10 rounded-2xl py-6 px-8 hover:border-[#84cc16]/30 transition-colors">
+                <p className="text-white/40 text-xs uppercase tracking-widest mb-3 font-medium">Join-code</p>
+                <p className="text-[#84cc16] text-5xl font-black tracking-[0.2em] font-mono">{nieuwTeam.joinCode}</p>
+                <button
+                  onClick={() => navigator.clipboard.writeText(nieuwTeam.joinCode)}
+                  className="mt-4 text-xs text-white/50 hover:text-[#84cc16] border border-white/10 hover:border-[#84cc16]/30 rounded-lg px-4 py-2 transition-all"
+                >
+                  📋 Naar klembord kopiëren
+                </button>
               </div>
-              <div className="space-y-2">
-                <PrimaryButton onClick={() => navigate('/dashboard')}>Ga naar dashboard</PrimaryButton>
-                <BackButton onClick={() => navigate(-1)} />
+              
+              <div className="flex gap-3">
+                <PrimaryButton onClick={() => navigate('/dashboard')} className="flex-1">Ga naar dashboard</PrimaryButton>
+                <SecondaryButton onClick={() => navigate(-1)} className="flex-1 max-w-[140px]">Terug</SecondaryButton>
               </div>
             </div>
           )}
 
           {/* SUCCES AANGESLOTEN */}
           {scherm === 'succes-aangesloten' && (
-            <div className="space-y-6 text-center">
-              <div className="space-y-3">
-                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#84cc16]/10 border border-[#84cc16]/25 mx-auto">
-                  <span className="text-[#84cc16] text-2xl">⬡</span>
+            <div className="space-y-8 text-center">
+              <div className="space-y-4 animate-fade-in">
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-[#84cc16]/10 border border-[#84cc16]/25 mx-auto shadow-lg shadow-[#84cc16]/10">
+                  <span className="text-[#84cc16] text-4xl">⬡</span>
                 </div>
                 <div>
-                  <h2 className="text-white text-xl font-bold tracking-tight">Welkom bij het team!</h2>
-                  <p className="text-white/35 text-sm mt-1">Je bent succesvol toegevoegd.</p>
+                  <h2 className="text-white text-2xl font-bold tracking-tight">Welkom bij het team!</h2>
+                  <p className="text-white/40 text-sm mt-2">Je bent succesvol toegevoegd. Samen stappen!</p>
                 </div>
               </div>
-              <div className="space-y-2">
-                <PrimaryButton onClick={() => navigate('/dashboard')}>Ga naar dashboard</PrimaryButton>
-                <BackButton onClick={() => navigate(-1)} />
+              
+              <div className="flex gap-3">
+                <PrimaryButton onClick={() => navigate('/dashboard')} className="flex-1">Ga naar dashboard</PrimaryButton>
+                <SecondaryButton onClick={() => navigate(-1)} className="flex-1 max-w-[140px]">Terug</SecondaryButton>
               </div>
             </div>
           )}
 
         </div>
-        <p className="text-center text-white/15 text-xs mt-5 tracking-wide">Stapril</p>
+        <p className="text-center text-white/15 text-xs mt-6 tracking-wide">Stapril</p>
       </div>
     </div>
   )
