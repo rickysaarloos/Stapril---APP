@@ -105,8 +105,8 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
 
-      {/* Navbar */}
-      <header className="border-b border-white/5 px-6 py-4 flex items-center justify-between">
+      {/* Navbar — slide-in animatie */}
+      <header className="animate-slide-down border-b border-white/5 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-[#84cc16] text-xl leading-none">⬡</span>
           <span className="text-white font-bold tracking-widest uppercase text-sm">Stapril</span>
@@ -142,8 +142,8 @@ export default function Dashboard() {
 
       <main className="max-w-4xl mx-auto px-6 py-12 space-y-8">
 
-        {/* Welkom */}
-        <div>
+        {/* Welkom — fade-in */}
+        <div className="animate-fade-in">
           <p className="text-[#84cc16] text-xs tracking-[0.2em] uppercase mb-2">welkom terug</p>
           <h1 className="text-4xl sm:text-5xl font-black tracking-tight leading-tight">
             {user?.naam || 'Deelnemer'}
@@ -156,29 +156,30 @@ export default function Dashboard() {
             }
           </p>
         </div>
-        {/* Badges */}
-<div
-  onClick={() => navigate('/badges')}
-  className="bg-white/[0.03] hover:bg-white/[0.05] border border-white/5 hover:border-[#84cc16]/20 rounded-2xl p-5 flex items-center justify-between cursor-pointer transition-all duration-200 group"
->
-  <div className="flex items-center gap-4">
-    <div className="w-11 h-11 rounded-xl bg-[#84cc16]/10 border border-[#84cc16]/20 flex items-center justify-center text-xl shrink-0">
-      🏅
-    </div>
-    <div>
-      <h2 className="text-white font-bold text-sm">Jouw badges</h2>
-      <p className="text-white/30 text-xs mt-0.5">Bekijk je behaalde prestaties</p>
-    </div>
-  </div>
-  <span className="text-white/20 group-hover:text-[#84cc16]/60 group-hover:translate-x-0.5 transition-all duration-200 text-lg">
-    →
-  </span>
-</div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {/* Badges — fade-in delay 1 + verbeterde hover */}
+        <div
+          onClick={() => navigate('/badges')}
+          className="animate-fade-in-delay-1 bg-white/[0.03] hover:bg-white/[0.05] border border-white/5 hover:border-[#84cc16]/20 rounded-2xl p-5 flex items-center justify-between cursor-pointer transition-all duration-200 group hover:scale-[1.01] active:scale-[0.99]"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-[#84cc16]/10 border border-[#84cc16]/20 flex items-center justify-center text-xl shrink-0">
+              🏅
+            </div>
+            <div>
+              <h2 className="text-white font-bold text-sm">Jouw badges</h2>
+              <p className="text-white/30 text-xs mt-0.5">Bekijk je behaalde prestaties</p>
+            </div>
+          </div>
+          <span className="text-white/20 group-hover:text-[#84cc16]/60 group-hover:translate-x-0.5 transition-all duration-200 text-lg">
+            →
+          </span>
+        </div>
 
-          <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 flex flex-col gap-2">
+        {/* Stats — fade-in delay 2 */}
+        <div className="animate-fade-in-delay-2 grid grid-cols-2 sm:grid-cols-4 gap-4">
+
+          <div className="bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 hover:border-white/10 hover:scale-[1.02] rounded-2xl p-5 flex flex-col gap-2 transition-all duration-200 cursor-default">
             <div className="flex items-center justify-between">
               <span className="text-white/30 text-xs uppercase tracking-widest">Dag</span>
               <span className="text-lg">📅</span>
@@ -187,7 +188,7 @@ export default function Dashboard() {
             <span className="text-white/20 text-xs">van 30 dagen</span>
           </div>
 
-          <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 flex flex-col gap-2">
+          <div className="bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 hover:border-white/10 hover:scale-[1.02] rounded-2xl p-5 flex flex-col gap-2 transition-all duration-200 cursor-default">
             <div className="flex items-center justify-between">
               <span className="text-white/30 text-xs uppercase tracking-widest">Totaal</span>
               <span className="text-lg">👟</span>
@@ -198,7 +199,7 @@ export default function Dashboard() {
             <span className="text-white/20 text-xs">stappen deze maand</span>
           </div>
 
-          <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 flex flex-col gap-2">
+          <div className="bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 hover:border-white/10 hover:scale-[1.02] rounded-2xl p-5 flex flex-col gap-2 transition-all duration-200 cursor-default">
             <div className="flex items-center justify-between">
               <span className="text-white/30 text-xs uppercase tracking-widest">Doeldagen</span>
               <span className="text-lg">🎯</span>
@@ -209,17 +210,19 @@ export default function Dashboard() {
             <span className="text-white/20 text-xs">≥ 10.000 stappen</span>
           </div>
 
-          <div className={`rounded-2xl p-5 flex flex-col gap-2 border transition-colors
+          <div className={`rounded-2xl p-5 flex flex-col gap-2 border transition-all duration-300 cursor-default
             ${streak >= 3
-              ? 'bg-[#84cc16]/[0.06] border-[#84cc16]/30'
-              : 'bg-white/[0.03] border-white/5'
+              ? 'bg-[#84cc16]/[0.06] border-[#84cc16]/30 shadow-lg shadow-[#84cc16]/10 hover:shadow-[#84cc16]/20'
+              : 'bg-white/[0.03] border-white/5 hover:bg-white/[0.06] hover:border-white/10 hover:scale-[1.02]'
             }`}
           >
             <div className="flex items-center justify-between">
               <span className={`text-xs uppercase tracking-widest ${streak >= 3 ? 'text-[#84cc16]/60' : 'text-white/30'}`}>
                 Streak
               </span>
-              <span className="text-lg">{streak >= 3 ? '🔥' : '💤'}</span>
+              <span className={`text-lg ${streak >= 3 ? 'animate-bounce' : ''}`}>
+                {streak >= 3 ? '🔥' : '💤'}
+              </span>
             </div>
             <span className={`text-3xl font-black leading-none ${streak >= 3 ? 'text-[#84cc16]' : 'text-white'}`}>
               {statsLaden ? '…' : streak}
@@ -231,8 +234,8 @@ export default function Dashboard() {
 
         </div>
 
-        {/* Stappen invoer */}
-        <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-6 space-y-4">
+        {/* Stappen invoer — fade-in delay 3 */}
+        <div className="animate-fade-in-delay-3 bg-white/[0.03] border border-white/5 rounded-2xl p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-white font-bold text-lg">Stappen vandaag</h2>
@@ -273,7 +276,7 @@ export default function Dashboard() {
             </div>
           )}
           {stappenOpgeslagen && (
-            <div className="bg-[#84cc16]/10 border border-[#84cc16]/20 rounded-lg px-4 py-3 text-[#84cc16] text-sm">
+            <div className="animate-slide-up bg-[#84cc16]/10 border border-[#84cc16]/20 rounded-lg px-4 py-3 text-[#84cc16] text-sm">
               ✓ Stappen opgeslagen!
             </div>
           )}
@@ -286,7 +289,7 @@ export default function Dashboard() {
               </div>
               <div className="w-full bg-white/5 rounded-full h-1.5">
                 <div
-                  className="bg-[#84cc16] h-1.5 rounded-full transition-all duration-500"
+                  className="bg-[#84cc16] h-1.5 rounded-full transition-all duration-700 shadow-sm shadow-[#84cc16]/50"
                   style={{ width: `${voortgang * 100}%` }}
                 />
               </div>
@@ -294,14 +297,18 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Grafiek */}
-        <StappenGrafiek uid={user?.uid} refresh={refreshTrigger} />
+        {/* Grafiek — fade-in delay 4 */}
+        <div className="animate-fade-in-delay-4">
+          <StappenGrafiek uid={user?.uid} refresh={refreshTrigger} />
+        </div>
 
-        {/* Klassement */}
-        <Klassement />
+        {/* Klassement — fade-in delay 4 */}
+        <div className="animate-fade-in-delay-4">
+          <Klassement />
+        </div>
 
-        {/* Challenge voortgang */}
-        <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-6 space-y-3">
+        {/* Challenge voortgang — fade-in delay 4 */}
+        <div className="animate-fade-in-delay-4 bg-white/[0.03] border border-white/5 rounded-2xl p-6 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-white font-bold">Challenge voortgang</h2>
             <span className="text-white/30 text-xs uppercase tracking-widest capitalize">
@@ -310,7 +317,7 @@ export default function Dashboard() {
           </div>
           <div className="w-full bg-white/5 rounded-full h-2">
             <div
-              className="bg-[#84cc16] h-2 rounded-full transition-all"
+              className="bg-[#84cc16] h-2 rounded-full transition-all shadow-sm shadow-[#84cc16]/30"
               style={{ width: `${(dag / 30) * 100}%` }}
             />
           </div>
@@ -319,8 +326,8 @@ export default function Dashboard() {
           </p>
         </div>
 
-        {/* Team */}
-        <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-6 flex items-center justify-between">
+        {/* Team — fade-in delay 4 */}
+        <div className="animate-fade-in-delay-4 bg-white/[0.03] border border-white/5 rounded-2xl p-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-2xl">👥</span>
             <div>
