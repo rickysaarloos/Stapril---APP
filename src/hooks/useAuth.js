@@ -4,19 +4,26 @@ import {
   signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
+  deleteUser,
 } from 'firebase/auth'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import {
+  doc, getDoc, setDoc, updateDoc,
+  collection, getDocs, query, where,
+  arrayRemove, deleteDoc, writeBatch,
+} from 'firebase/firestore'
 import { auth, db } from '../firebase'
-
+ 
 /**
  * Key voor localStorage waar ingelogde gebruikersdata wordt bewaard.
  * @type {string}
  */
 const STORAGE_KEY = 'stapril_user'
-
+ 
 /**
  * Custom React hook voor authenticatie (Firebase) met lokale opslag.
- * @returns {{ user: object|null, loading: boolean, registreer: function, login: function, logout: function }}
+ * @returns {{ user, loading, registreer, login, logout, updateNaam, verwijderAccount }}
  */
 export function useAuth() {
   const [user, setUser] = useState(() => {
@@ -28,13 +35,13 @@ export function useAuth() {
     }
   })
   const [loading, setLoading] = useState(true)
-
+ 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         const docRef = doc(db, 'users', firebaseUser.uid)
         const docSnap = await getDoc(docRef)
-
+ 
         const userData = {
           uid: firebaseUser.uid,
           email: firebaseUser.email,
@@ -42,7 +49,7 @@ export function useAuth() {
           role: docSnap.exists() ? docSnap.data().role : 'deelnemer',
           teamId: docSnap.exists() ? (docSnap.data().teamId ?? null) : null,
         }
-
+ 
         setUser(userData)
         localStorage.setItem(STORAGE_KEY, JSON.stringify(userData))
       } else {
@@ -51,16 +58,12 @@ export function useAuth() {
       }
       setLoading(false)
     })
-
+ 
     return () => unsub()
   }, [])
-
+ 
   /**
    * Registreert een nieuwe gebruiker in Firebase Auth + Firestore.
-   * @param {string} naam Gebruikersnaam
-   * @param {string} email Emailadres
-   * @param {string} wachtwoord Wachtwoord
-   * @returns {Promise<object>} Firebase gebruikersobject
    */
   async function registreer(naam, email, wachtwoord) {
     const result = await createUserWithEmailAndPassword(auth, email, wachtwoord)
@@ -73,24 +76,76 @@ export function useAuth() {
     })
     return result.user
   }
-
+ 
   /**
    * Logt een gebruiker in met email en wachtwoord.
-   * @param {string} email Emailadres
-   * @param {string} wachtwoord Wachtwoord
-   * @returns {Promise<object>} Firebase loginresultaat
    */
   async function login(email, wachtwoord) {
     return signInWithEmailAndPassword(auth, email, wachtwoord)
   }
-
+ 
   /**
    * Logt de huidige gebruiker uit.
-   * @returns {Promise<void>}
    */
   async function logout() {
     await signOut(auth)
   }
-
-  return { user, loading, registreer, login, logout }
+ 
+  /**
+   * Werkt de gebruikersnaam bij in Firestore en localStorage.
+   * @param {string} nieuweNaam
+   */
+  async function updateNaam(nieuweNaam) {
+    if (!auth.currentUser) throw new Error('Niet ingelogd')
+    const uid = auth.currentUser.uid
+    await updateDoc(doc(db, 'users', uid), { naam: nieuweNaam })
+    const bijgewerkt = { ...user, naam: nieuweNaam }
+    setUser(bijgewerkt)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(bijgewerkt))
+  }
+ 
+  /**
+   * Verwijdert het account volledig na wachtwoordbevestiging.
+   * Ruimt op: stappen docs, uid uit teams.leden, users doc, Firebase Auth account.
+   * @param {string} wachtwoord Wachtwoord ter bevestiging
+   */
+  async function verwijderAccount(wachtwoord) {
+    const firebaseUser = auth.currentUser
+    if (!firebaseUser) throw new Error('Niet ingelogd')
+ 
+    // 1. Re-authenticatie vereist door Firebase voor gevoelige acties
+    const credential = EmailAuthProvider.credential(firebaseUser.email, wachtwoord)
+    await reauthenticateWithCredential(firebaseUser, credential)
+ 
+    const uid = firebaseUser.uid
+    const batch = writeBatch(db)
+ 
+    // 2. Verwijder alle stappen docs van deze gebruiker
+    const stappenSnap = await getDocs(
+      query(collection(db, 'stappen'), where('uid', '==', uid))
+    )
+    stappenSnap.forEach(d => batch.delete(d.ref))
+ 
+    // 3. Verwijder uid uit teams.leden arrays
+    const teamsSnap = await getDocs(
+      query(collection(db, 'teams'), where('leden', 'array-contains', uid))
+    )
+    teamsSnap.forEach(d => {
+      batch.update(d.ref, { leden: arrayRemove(uid) })
+    })
+ 
+    // 4. Verwijder users doc
+    batch.delete(doc(db, 'users', uid))
+ 
+    // 5. Schrijf alles in één keer weg
+    await batch.commit()
+ 
+    // 6. Verwijder Firebase Auth account
+    await deleteUser(firebaseUser)
+ 
+    // 7. Ruim localStorage op
+    localStorage.removeItem(STORAGE_KEY)
+  }
+ 
+  return { user, loading, registreer, login, logout, updateNaam, verwijderAccount }
 }
