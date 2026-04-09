@@ -306,7 +306,7 @@ export default function Profiel() {
             <p className="text-white font-black text-xl tracking-tight truncate">{user?.naam ?? user?.email}</p>
             {teamNaam && (
               <div className="inline-flex items-center gap-1.5 mt-1 bg-white/[0.04] border border-white/[0.08] rounded-md px-2 py-0.5">
-                <span className="text-[#84cc16] text-[10px]">hex</span>
+                <span className="text-[#84cc16] text-[10px]">Team</span>
                 <span className="text-white/40 text-xs">{teamNaam}</span>
               </div>
             )}

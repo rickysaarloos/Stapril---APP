@@ -127,7 +127,7 @@ export default function LoginPage() {
               id="email"
               type="email"
               value={fields.email}
-              placeholder="jan@bedrijf.nl"
+              placeholder="gebruiker@gmail.com"
               autoComplete="email"
               error={errors.email}
               icon={<MailIcon />}
