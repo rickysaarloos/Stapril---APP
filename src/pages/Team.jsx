@@ -2,12 +2,17 @@
  * Pagina voor teambeheer: zoeken, aanmaken en verlaten.
  * @returns {JSX.Element}
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../context/AuthContext'
 import { zoekTeamOpCode, sluitAanBijTeam, maakTeamAan, laadTeamDetails, verlatenTeam } from '../utils/teamCode'
-import { doc, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore'
+import { doc, updateDoc, onSnapshot, serverTimestamp, getDoc } from 'firebase/firestore'
 import { db } from '../firebase'
+
+// ── Helper: format getallen ───────────────────────────────────
+function fmt(n) {
+  return n?.toLocaleString('nl-NL') ?? '0'
+}
 
 export default function Team() {
   const { user } = useAuthContext()
@@ -247,12 +252,11 @@ export default function Team() {
     </div>
   )
 
-  // ── Voortgangsbalk Component ───────────────────────────────
-  const ProgressCard = ({ huidige, doel }) => {
+  // ── Voortgangsbalk Component voor teamdoel ──────────────────
+  const TeamProgressCard = ({ huidige, doel }) => {
     const percentage = Math.min(100, Math.round((huidige / doel) * 100))
     const isComplete = percentage >= 100
     
-    // Kleur logica: groen bij >80%, oranje bij >50%, anders blauw
     const barColor = isComplete 
       ? 'bg-[#84cc16]' 
       : percentage >= 80 
@@ -272,7 +276,7 @@ export default function Team() {
     return (
       <div className="bg-gradient-to-br from-white/[0.05] to-transparent border border-white/10 backdrop-blur-sm rounded-2xl p-6 shadow-lg shadow-black/10">
         <div className="flex items-center justify-between mb-4">
-          <h4 className="text-white font-semibold text-base">Voortgang vandaag</h4>
+          <h4 className="text-white font-semibold text-base">Teamvoortgang vandaag</h4>
           {isComplete && (
             <span className="text-[#84cc16] text-xs font-bold uppercase tracking-wider bg-[#84cc16]/10 px-2 py-1 rounded-full border border-[#84cc16]/20">
               ✓ Doel behaald!
@@ -283,10 +287,10 @@ export default function Team() {
         <div className="space-y-3">
           <div className="flex justify-between text-sm">
             <span className="text-white/60">
-              {huidige?.toLocaleString('nl-NL') ?? '0'} stappen
+              {fmt(huidige)} stappen
             </span>
             <span className="text-white/40">
-              {percentage}% van {doel.toLocaleString('nl-NL')}
+              {percentage}% van {fmt(doel)}
             </span>
           </div>
           
@@ -299,9 +303,58 @@ export default function Team() {
           
           {!isComplete && (
             <p className="text-xs text-white/40">
-              Nog {(doel - (huidige || 0)).toLocaleString('nl-NL')} stappen te gaan 🚶
+              Nog {fmt(doel - (huidige || 0))} stappen te gaan 🚶
             </p>
           )}
+        </div>
+      </div>
+    )
+  }
+
+  // ── MemberRow Component met totale stappen ──────────────────
+  const MemberRow = ({ lid, isCurrentUser }) => {
+    const [memberTotalSteps, setMemberTotalSteps] = useState(0)
+    const [memberLoading, setMemberLoading] = useState(true)
+
+    // Load totalSteps for this member
+    useEffect(() => {
+      if (!lid?.uid) return
+      let unsub
+      const loadSteps = onSnapshot(doc(db, 'users', lid.uid), (snap) => {
+        const data = snap.data()
+        setMemberTotalSteps(typeof data?.totalSteps === 'number' ? data.totalSteps : 0)
+        setMemberLoading(false)
+      })
+      unsub = loadSteps
+      return () => unsub?.()
+    }, [lid?.uid])
+
+    const initials = (lid.naam ?? lid.email ?? '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+
+    return (
+      <div className="flex items-center gap-4 p-4 bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 hover:border-white/10 rounded-xl transition-all duration-200 group">
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#84cc16]/20 to-white/5 border border-white/10 flex items-center justify-center text-white font-bold text-lg group-hover:scale-105 transition-transform flex-shrink-0">
+          {initials}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-white/90 font-medium text-sm truncate">{lid.naam ?? lid.email}</p>
+            {isCurrentUser && (
+              <span className="text-[10px] font-black uppercase tracking-widest bg-[#84cc16]/20 text-[#84cc16] px-2 py-0.5 rounded-full">
+                Jij
+              </span>
+            )}
+          </div>
+          {lid.naam && <p className="text-white/30 text-xs truncate">{lid.email}</p>}
+          {/* Totale stappen allertijden */}
+          <p className="text-[#84cc16]/80 text-xs font-medium mt-1 flex items-center gap-1">
+            <span className="text-[10px]">👟</span>
+            {memberLoading ? (
+              <span className="text-white/20">Laden…</span>
+            ) : (
+              <>{fmt(memberTotalSteps)} stappen allertijd</>
+            )}
+          </p>
         </div>
       </div>
     )
@@ -383,7 +436,7 @@ export default function Team() {
                 )}
               </div>
 
-              {/* Members list */}
+              {/* Members list — MET TOTALE STAPPEN */}
               <div className="bg-white/[0.03] border border-white/[0.08] rounded-3xl p-8 backdrop-blur-sm">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-white font-bold text-lg">Teamleden</h3>
@@ -407,23 +460,11 @@ export default function Team() {
                 ) : (
                   <div className="grid sm:grid-cols-2 gap-3">
                     {teamDetails?.leden?.map(lid => (
-                      <div
-                        key={lid.uid}
-                        className="flex items-center gap-4 p-4 bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 hover:border-white/10 rounded-xl transition-all duration-200 group"
-                      >
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#84cc16]/20 to-white/5 border border-white/10 flex items-center justify-center text-white font-bold text-lg group-hover:scale-105 transition-transform">
-                          {(lid.naam ?? lid.email ?? '?')[0].toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-white/90 font-medium text-sm truncate">{lid.naam ?? lid.email}</p>
-                          {lid.naam && <p className="text-white/30 text-xs truncate">{lid.email}</p>}
-                        </div>
-                        {lid.uid === user.uid && (
-                          <span className="text-[10px] font-black uppercase tracking-widest bg-[#84cc16]/20 text-[#84cc16] px-2.5 py-1 rounded-full">
-                            Jij
-                          </span>
-                        )}
-                      </div>
+                      <MemberRow 
+                        key={lid.uid} 
+                        lid={lid} 
+                        isCurrentUser={lid.uid === user.uid} 
+                      />
                     ))}
                   </div>
                 )}
@@ -433,8 +474,8 @@ export default function Team() {
             {/* Right: Actions sidebar */}
             <div className="space-y-4">
 
-              {/* 🎯 Voortgangsbalk - voor ALLE teamleden */}
-              <ProgressCard 
+              {/* 🎯 Teamvoortgangsbalk - voor ALLE teamleden */}
+              <TeamProgressCard 
                 huidige={teamDetails?.huidigeStappen ?? 0} 
                 doel={teamDoel} 
               />
@@ -458,7 +499,7 @@ export default function Team() {
                   <div className="flex items-center justify-between">
                     <span className="text-white/40 text-sm">Teamdoel</span>
                     <span className="text-white/80 text-sm font-medium">
-                      {teamDoel.toLocaleString('nl-NL')} stappen/dag
+                      {fmt(teamDoel)} stappen/dag
                     </span>
                   </div>
                 </div>
@@ -472,7 +513,7 @@ export default function Team() {
                       <h4 className="text-white font-semibold text-base tracking-tight">Teamdoel instellen</h4>
                       <p className="text-white/40 text-xs">
                         Huidig:{' '}
-                        <span className="text-white/70 font-medium">{teamDoel.toLocaleString('nl-NL')} stappen/dag</span>
+                        <span className="text-white/70 font-medium">{fmt(teamDoel)} stappen/dag</span>
                       </p>
                     </div>
                     <div className="bg-[#84cc16]/10 border border-[#84cc16]/20 rounded-lg p-2">

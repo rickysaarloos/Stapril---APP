@@ -78,7 +78,7 @@ function BadgeKaart({ badge, isVerdiend, isNieuw, data }) {
             </p>
           )}
         </div>
- 
+
         {/* Vinkje / slot */}
         {isVerdiend ? (
           <div className="w-5 h-5 rounded-full bg-[#84cc16] flex items-center justify-center shrink-0 animate-fade-in">

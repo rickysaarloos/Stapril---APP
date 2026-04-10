@@ -155,7 +155,7 @@ export function useStepTracker(uid) {
  
   return { stappen, status, startTracking, stopTracking, pct }
 }
- 
+
 /**
  * Geeft de datum-sleutel van vandaag als string (bijv. "2026-04-07").
  * @returns {string}

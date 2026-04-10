@@ -2,13 +2,14 @@
  * Profielpagina voor gebruikersstatistieken en badges.
  * @returns {JSX.Element}
  */
-import { useEffect, useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../context/AuthContext'
-import { doc, getDoc, onSnapshot, updateDoc, increment } from 'firebase/firestore'
+import { doc, getDoc, updateDoc, increment } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useStepTracker } from '../hooks/useStepTracker'
 import { useBadges, ALLE_BADGES } from '../hooks/useBadges'
+import { useStats } from '../hooks/useStepStats' // ✅ NIEUW: gebruik dezelfde hook als Dashboard
  
 const BADGE_DEF = ALLE_BADGES.map(b => ({
   id: b.id,
@@ -29,6 +30,7 @@ const STATUS_LABELS = {
  
 const DEFAULT_DAGDOEL = 10000
  
+// ── Helper functies voor mijlpalen ─────────────────────────────
 function getNextMilestone(steps) {
   return MILESTONES.find(m => m > steps) ?? MILESTONES.at(-1)
 }
@@ -40,6 +42,13 @@ function getPrevMilestone(steps) {
 
 function fmt(n) {
   return n?.toLocaleString('nl-NL') ?? '0'
+}
+
+function calculateMilestoneProgress(steps) {
+  const next = getNextMilestone(steps)
+  const prev = getPrevMilestone(steps)
+  if (next === prev) return steps >= next ? 100 : 0
+  return Math.min(100, Math.max(0, Math.round(((steps - prev) / (next - prev)) * 100)))
 }
 
 // ── Helper: update totalSteps in Firestore ─────────────────────
@@ -55,6 +64,7 @@ export async function voegStappenToeAanTotaal(uid, aantal) {
   }
 }
  
+// ── Modals ─────────────────────────────────────────────────────
 function BewerkModal({ huidigeNaam, onOpslaan, onSluiten, laden }) {
   const [naam, setNaam] = useState(huidigeNaam)
   const [fout, setFout] = useState('')
@@ -190,7 +200,7 @@ function BadgeRow({ badge, unlocked }) {
   )
 }
  
-// Dagdoel wordt meegegeven als prop zodat de kaart het persoonlijke doel toont
+// ── LiveStappenCard Component ──────────────────────────────────
 function LiveStappenCard({ uid, dagdoel, onStappenCommit }) {
   const { stappen, status, startTracking, stopTracking, resetStappen } = useStepTracker(uid)
   const isTracking = status === 'tracking'
@@ -198,7 +208,6 @@ function LiveStappenCard({ uid, dagdoel, onStappenCommit }) {
  
   const pct = dagdoel > 0 ? Math.min(Math.round((stappen / dagdoel) * 100), 100) : 0
  
-  // When stopping tracking, commit the steps to total
   const handleStopTracking = useCallback(() => {
     if (stappen > 0 && onStappenCommit) {
       onStappenCommit(stappen)
@@ -247,63 +256,58 @@ function LiveStappenCard({ uid, dagdoel, onStappenCommit }) {
   )
 }
  
+// ── MAIN COMPONENT ─────────────────────────────────────────────
 export default function Profiel() {
   const { user, updateNaam, verwijderAccount } = useAuthContext()
   const navigate = useNavigate()
  
-  const [totalSteps, setTotalSteps] = useState(0)
-  const [teamNaam, setTeamNaam] = useState('')
-  const [dagdoel, setDagdoel] = useState(DEFAULT_DAGDOEL)
-  const [laden, setLaden] = useState(true)
+  // ✅ Gebruik useStats hook (zelfde als Dashboard) voor consistente data
+  const { totaalStappen, dagdoel: statsDagdoel, laden: statsLaden } = useStats(user?.uid)
   const { verdiendeBadges, loading: badgesLaden } = useBadges(user?.uid)
  
+  // Lokale state voor UI interacties
+  const [teamNaam, setTeamNaam] = useState('')
+  const [dagdoel, setDagdoel] = useState(DEFAULT_DAGDOEL)
   const [bewerkOpen, setBewerkOpen] = useState(false)
   const [verwijderOpen, setVerwijderOpen] = useState(false)
   const [bewerkLaden, setBewerkLaden] = useState(false)
   const [verwijderLaden, setVerwijderLaden] = useState(false)
  
-  // ── Load user data with real-time updates ─────────────────────
+  // ── Sync dagdoel vanuit useStats ─────────────────────────────
   useEffect(() => {
-    if (!user?.uid) return
-    
-    const unsub = onSnapshot(doc(db, 'users', user.uid), async (snap) => {
+    if (statsDagdoel) {
+      setDagdoel(statsDagdoel)
+    }
+  }, [statsDagdoel])
+ 
+  // ── Laad teamnaam eenmalig ───────────────────────────────────
+  useEffect(() => {
+    if (!user?.teamId || teamNaam) return
+    const loadTeam = async () => {
       try {
-        const data = snap.data() ?? {}
-        
-        // Robuuste fallback voor totalSteps
-        const steps = data.totalSteps
-        setTotalSteps(typeof steps === 'number' ? steps : 0)
-        
-        setDagdoel(data.dagdoel ?? DEFAULT_DAGDOEL)
-        
-        if (data.teamId && !teamNaam) {
-          try {
-            const teamSnap = await getDoc(doc(db, 'teams', data.teamId))
-            setTeamNaam(teamSnap.data()?.naam ?? '')
-          } catch (e) {
-            console.warn('Kon teamnaam niet laden:', e)
-          }
+        const teamSnap = await getDoc(doc(db, 'teams', user.teamId))
+        if (teamSnap.exists()) {
+          setTeamNaam(teamSnap.data().naam ?? '')
         }
       } catch (e) {
-        console.error('Fout bij laden user data:', e)
-      } finally {
-        setLaden(false)
+        console.warn('Kon teamnaam niet laden:', e)
       }
-    })
-    return () => unsub()
-  }, [user?.uid])
+    }
+    loadTeam()
+  }, [user?.teamId, teamNaam])
  
-  // ── Commit steps to total (called when live tracking stops) ───
+  // ── Commit steps to total (live tracker) ─────────────────────
   const handleStappenCommit = useCallback(async (aantal) => {
     if (!user?.uid || !aantal || aantal <= 0) return
     try {
       await voegStappenToeAanTotaal(user.uid, aantal)
-      // onSnapshot update zorgt dat totalSteps direct ververst
+      // useStats luistert automatisch via onSnapshot → auto-update
     } catch (err) {
       console.error('Fout bij committen stappen:', err)
     }
   }, [user?.uid])
  
+  // ── Handlers ─────────────────────────────────────────────────
   async function handleNaamOpslaan(nieuweNaam) {
     setBewerkLaden(true)
     try {
@@ -325,17 +329,14 @@ export default function Profiel() {
     }
   }
  
-  // ── Milestone berekening (met edge-case handling) ─────────────
-  const next = getNextMilestone(totalSteps)
-  const prev = getPrevMilestone(totalSteps)
-  const pct = (next > prev && next > 0) 
-    ? Math.min(100, Math.max(0, Math.round(((totalSteps - prev) / (next - prev)) * 100)))
-    : (totalSteps >= next ? 100 : 0)
-    
+  // ── Calculations ─────────────────────────────────────────────
+  const nextMilestone = getNextMilestone(totaalStappen)
+  const milestonePct = calculateMilestoneProgress(totaalStappen)
   const earnedCount = BADGE_DEF.filter(b => verdiendeBadges[b.id]).length
   const initials = (user?.naam ?? user?.email ?? 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
  
-  if (laden || badgesLaden) {
+  // ── Loading state ────────────────────────────────────────────
+  if (statsLaden || badgesLaden) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
         <div className="w-5 h-5 border-2 border-[#84cc16]/30 border-t-[#84cc16] rounded-full animate-spin" />
@@ -343,11 +344,13 @@ export default function Profiel() {
     )
   }
  
+  // ── Render ───────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#0a0a0a]">
       {bewerkOpen && <BewerkModal huidigeNaam={user?.naam ?? ''} onOpslaan={handleNaamOpslaan} onSluiten={() => setBewerkOpen(false)} laden={bewerkLaden} />}
       {verwijderOpen && <VerwijderModal onBevestigen={handleVerwijderen} onSluiten={() => setVerwijderOpen(false)} laden={verwijderLaden} />}
  
+      {/* Animated background */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#84cc16]/[0.04] rounded-full blur-3xl" />
       </div>
@@ -382,12 +385,12 @@ export default function Profiel() {
         {/* Live stappen — met commit callback */}
         <LiveStappenCard uid={user?.uid} dagdoel={dagdoel} onStappenCommit={handleStappenCommit} />
  
-        {/* ✅ Total steps — nu met betere fallback en debug */}
+        {/* ✅ Total steps — NU VIA useStats (consistent met Dashboard) */}
         <div className="relative mt-4 p-5 bg-white/[0.03] border border-white/[0.08] rounded-2xl overflow-hidden">
           <div className="absolute -top-8 -right-8 w-24 h-24 bg-[#84cc16]/10 rounded-full blur-2xl pointer-events-none" />
           <p className="text-white/35 text-[10px] uppercase tracking-widest mb-2 font-medium">Totale stappen aller tijden</p>
           <p className="text-white font-black text-5xl tracking-tighter leading-none">
-            {totalSteps > 0 ? fmt(totalSteps) : <span className="text-white/20">Nog geen stappen</span>}
+            {totaalStappen > 0 ? fmt(totaalStappen) : <span className="text-white/20">Nog geen stappen</span>}
           </p>
           <div className="flex items-center gap-2 mt-2">
             <span className="w-1.5 h-1.5 rounded-full bg-[#84cc16]" />
@@ -396,20 +399,14 @@ export default function Profiel() {
           <div className="mt-4 pt-4 border-t border-white/[0.07]">
             <div className="flex justify-between text-xs text-white/30 mb-2">
               <span>Volgende mijlpaal</span>
-              <span className="text-white/50">{fmt(next)}</span>
+              <span className="text-white/50">{fmt(nextMilestone)}</span>
             </div>
             <div className="h-1 bg-white/[0.08] rounded-full overflow-hidden">
               <div 
                 className="h-full bg-[#84cc16] rounded-full transition-all duration-700 ease-out" 
-                style={{ width: `${pct}%` }} 
+                style={{ width: `${milestonePct}%` }} 
               />
             </div>
-            {/* Debug info - verwijder dit in productie */}
-            {process.env.NODE_ENV === 'development' && (
-              <p className="text-[10px] text-white/20 mt-1 font-mono">
-                debug: {totalSteps} / prev:{prev} → next:{next} = {pct}%
-              </p>
-            )}
           </div>
         </div>
  
