@@ -2,10 +2,10 @@
  * Profielpagina voor gebruikersstatistieken en badges.
  * @returns {JSX.Element}
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../context/AuthContext'
-import { doc, getDoc, onSnapshot } from 'firebase/firestore'
+import { doc, getDoc, onSnapshot, updateDoc, increment } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useStepTracker } from '../hooks/useStepTracker'
 import { useBadges, ALLE_BADGES } from '../hooks/useBadges'
@@ -27,15 +27,32 @@ const STATUS_LABELS = {
   denied:      'Toestemming geweigerd',
 }
  
+const DEFAULT_DAGDOEL = 10000
+ 
 function getNextMilestone(steps) {
   return MILESTONES.find(m => m > steps) ?? MILESTONES.at(-1)
 }
+
 function getPrevMilestone(steps) {
   const idx = MILESTONES.findIndex(m => m > steps)
   return idx <= 0 ? 0 : MILESTONES[idx - 1]
 }
+
 function fmt(n) {
-  return n.toLocaleString('nl-NL')
+  return n?.toLocaleString('nl-NL') ?? '0'
+}
+
+// ── Helper: update totalSteps in Firestore ─────────────────────
+export async function voegStappenToeAanTotaal(uid, aantal) {
+  if (!uid || !aantal || aantal <= 0) return
+  try {
+    await updateDoc(doc(db, 'users', uid), {
+      totalSteps: increment(aantal),
+      lastStepUpdate: new Date().toISOString()
+    })
+  } catch (err) {
+    console.error('Fout bij updaten totalSteps:', err)
+  }
 }
  
 function BewerkModal({ huidigeNaam, onOpslaan, onSluiten, laden }) {
@@ -173,10 +190,21 @@ function BadgeRow({ badge, unlocked }) {
   )
 }
  
-function LiveStappenCard({ uid }) {
-  const { stappen, status, startTracking, stopTracking, pct } = useStepTracker(uid)
+// Dagdoel wordt meegegeven als prop zodat de kaart het persoonlijke doel toont
+function LiveStappenCard({ uid, dagdoel, onStappenCommit }) {
+  const { stappen, status, startTracking, stopTracking, resetStappen } = useStepTracker(uid)
   const isTracking = status === 'tracking'
   const isError = status === 'unsupported' || status === 'denied'
+ 
+  const pct = dagdoel > 0 ? Math.min(Math.round((stappen / dagdoel) * 100), 100) : 0
+ 
+  // When stopping tracking, commit the steps to total
+  const handleStopTracking = useCallback(() => {
+    if (stappen > 0 && onStappenCommit) {
+      onStappenCommit(stappen)
+    }
+    stopTracking()
+  }, [stappen, onStappenCommit, stopTracking])
  
   return (
     <div className="relative mt-5 p-5 bg-white/[0.03] border border-white/[0.08] rounded-2xl overflow-hidden">
@@ -194,16 +222,17 @@ function LiveStappenCard({ uid }) {
         </div>
         {!isError && (
           <button
-            onClick={isTracking ? stopTracking : startTracking}
+            onClick={isTracking ? handleStopTracking : startTracking}
             className={`flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 ${isTracking ? 'bg-red-500/10 border border-red-500/25 text-red-400 hover:bg-red-500/20' : 'bg-[#84cc16]/10 border border-[#84cc16]/25 text-[#84cc16] hover:bg-[#84cc16]/20'}`}
           >
-            {isTracking ? <><span className="w-2 h-2 rounded-sm bg-red-400" />Stop</> : <><span className="w-2 h-2 rounded-full bg-[#84cc16]" />Start</>}
+            {isTracking ? <><span className="w-2 h-2 rounded-sm bg-red-400" />Opslaan</> : <><span className="w-2 h-2 rounded-full bg-[#84cc16]" />Start</>}
           </button>
         )}
       </div>
       <div>
         <div className="flex justify-between text-xs text-white/30 mb-2">
-          <span>Dagdoel</span><span className="text-white/50">{pct}% van 10.000</span>
+          <span>Dagdoel</span>
+          <span className="text-white/50">{pct}% van {fmt(dagdoel)}</span>
         </div>
         <div className="h-1.5 bg-white/[0.08] rounded-full overflow-hidden">
           <div className="h-full bg-[#84cc16] rounded-full transition-all duration-300" style={{ width: `${pct}%` }} />
@@ -224,6 +253,7 @@ export default function Profiel() {
  
   const [totalSteps, setTotalSteps] = useState(0)
   const [teamNaam, setTeamNaam] = useState('')
+  const [dagdoel, setDagdoel] = useState(DEFAULT_DAGDOEL)
   const [laden, setLaden] = useState(true)
   const { verdiendeBadges, loading: badgesLaden } = useBadges(user?.uid)
  
@@ -232,24 +262,47 @@ export default function Profiel() {
   const [bewerkLaden, setBewerkLaden] = useState(false)
   const [verwijderLaden, setVerwijderLaden] = useState(false)
  
+  // ── Load user data with real-time updates ─────────────────────
   useEffect(() => {
     if (!user?.uid) return
+    
     const unsub = onSnapshot(doc(db, 'users', user.uid), async (snap) => {
       try {
         const data = snap.data() ?? {}
-        setTotalSteps(data.totalSteps ?? 0)
+        
+        // Robuuste fallback voor totalSteps
+        const steps = data.totalSteps
+        setTotalSteps(typeof steps === 'number' ? steps : 0)
+        
+        setDagdoel(data.dagdoel ?? DEFAULT_DAGDOEL)
+        
         if (data.teamId && !teamNaam) {
-          const teamSnap = await getDoc(doc(db, 'teams', data.teamId))
-          setTeamNaam(teamSnap.data()?.naam ?? '')
+          try {
+            const teamSnap = await getDoc(doc(db, 'teams', data.teamId))
+            setTeamNaam(teamSnap.data()?.naam ?? '')
+          } catch (e) {
+            console.warn('Kon teamnaam niet laden:', e)
+          }
         }
       } catch (e) {
-        console.error(e)
+        console.error('Fout bij laden user data:', e)
       } finally {
         setLaden(false)
       }
     })
     return () => unsub()
-  }, [user])
+  }, [user?.uid])
+ 
+  // ── Commit steps to total (called when live tracking stops) ───
+  const handleStappenCommit = useCallback(async (aantal) => {
+    if (!user?.uid || !aantal || aantal <= 0) return
+    try {
+      await voegStappenToeAanTotaal(user.uid, aantal)
+      // onSnapshot update zorgt dat totalSteps direct ververst
+    } catch (err) {
+      console.error('Fout bij committen stappen:', err)
+    }
+  }, [user?.uid])
  
   async function handleNaamOpslaan(nieuweNaam) {
     setBewerkLaden(true)
@@ -272,9 +325,13 @@ export default function Profiel() {
     }
   }
  
+  // ── Milestone berekening (met edge-case handling) ─────────────
   const next = getNextMilestone(totalSteps)
   const prev = getPrevMilestone(totalSteps)
-  const pct = next === prev ? 100 : Math.round(((totalSteps - prev) / (next - prev)) * 100)
+  const pct = (next > prev && next > 0) 
+    ? Math.min(100, Math.max(0, Math.round(((totalSteps - prev) / (next - prev)) * 100)))
+    : (totalSteps >= next ? 100 : 0)
+    
   const earnedCount = BADGE_DEF.filter(b => verdiendeBadges[b.id]).length
   const initials = (user?.naam ?? user?.email ?? 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
  
@@ -322,25 +379,47 @@ export default function Profiel() {
           </button>
         </div>
  
-        <LiveStappenCard uid={user?.uid} />
+        {/* Live stappen — met commit callback */}
+        <LiveStappenCard uid={user?.uid} dagdoel={dagdoel} onStappenCommit={handleStappenCommit} />
  
-        {/* Total steps */}
+        {/* ✅ Total steps — nu met betere fallback en debug */}
         <div className="relative mt-4 p-5 bg-white/[0.03] border border-white/[0.08] rounded-2xl overflow-hidden">
           <div className="absolute -top-8 -right-8 w-24 h-24 bg-[#84cc16]/10 rounded-full blur-2xl pointer-events-none" />
           <p className="text-white/35 text-[10px] uppercase tracking-widest mb-2 font-medium">Totale stappen aller tijden</p>
-          <p className="text-white font-black text-5xl tracking-tighter leading-none">{fmt(totalSteps)}</p>
+          <p className="text-white font-black text-5xl tracking-tighter leading-none">
+            {totalSteps > 0 ? fmt(totalSteps) : <span className="text-white/20">Nog geen stappen</span>}
+          </p>
           <div className="flex items-center gap-2 mt-2">
             <span className="w-1.5 h-1.5 rounded-full bg-[#84cc16]" />
             <span className="text-white/35 text-xs">stappen geteld</span>
           </div>
           <div className="mt-4 pt-4 border-t border-white/[0.07]">
             <div className="flex justify-between text-xs text-white/30 mb-2">
-              <span>Volgende mijlpaal</span><span className="text-white/50">{fmt(next)}</span>
+              <span>Volgende mijlpaal</span>
+              <span className="text-white/50">{fmt(next)}</span>
             </div>
             <div className="h-1 bg-white/[0.08] rounded-full overflow-hidden">
-              <div className="h-full bg-[#84cc16] rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
+              <div 
+                className="h-full bg-[#84cc16] rounded-full transition-all duration-700 ease-out" 
+                style={{ width: `${pct}%` }} 
+              />
             </div>
+            {/* Debug info - verwijder dit in productie */}
+            {process.env.NODE_ENV === 'development' && (
+              <p className="text-[10px] text-white/20 mt-1 font-mono">
+                debug: {totalSteps} / prev:{prev} → next:{next} = {pct}%
+              </p>
+            )}
           </div>
+        </div>
+ 
+        {/* Huidig dagdoel weergave */}
+        <div className="mt-4 px-4 py-3.5 bg-white/[0.02] border border-white/[0.07] rounded-2xl flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="text-lg">🎯</span>
+            <span className="text-white/50 text-sm">Persoonlijk dagdoel</span>
+          </div>
+          <span className="text-white/80 text-sm font-bold">{fmt(dagdoel)} stappen</span>
         </div>
  
         {/* Badges */}
