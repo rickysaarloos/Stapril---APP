@@ -352,7 +352,7 @@ export default function Team() {
             {memberLoading ? (
               <span className="text-white/20">Laden…</span>
             ) : (
-              <>{fmt(memberTotalSteps)} stappen allertijd</>
+              <>{fmt(memberTotalSteps)} totale stappen</>
             )}
           </p>
         </div>
