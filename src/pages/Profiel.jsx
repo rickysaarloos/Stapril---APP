@@ -2,22 +2,15 @@
  * Profielpagina voor gebruikersstatistieken en badges.
  * @returns {JSX.Element}
  */
-<<<<<<< Updated upstream
-import { useState, useCallback, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useAuthContext } from '../context/AuthContext'
-import { doc, getDoc, updateDoc, increment } from 'firebase/firestore'
-=======
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../context/AuthContext'
 import { doc, getDoc, onSnapshot, updateDoc, increment } from 'firebase/firestore'
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
->>>>>>> Stashed changes
 import { db } from '../firebase'
 import { useStepTracker } from '../hooks/useStepTracker'
 import { useBadges, ALLE_BADGES } from '../hooks/useBadges'
-import { useStats } from '../hooks/useStepStats' // ✅ NIEUW: gebruik dezelfde hook als Dashboard
+import { useStats } from '../hooks/useStepStats'
  
 const BADGE_DEF = ALLE_BADGES.map(b => ({
   id: b.id,
@@ -37,8 +30,6 @@ const STATUS_LABELS = {
 }
  
 const DEFAULT_DAGDOEL = 10000
-
-// 👇 NIEUW: Firebase Storage instance
 const storage = getStorage()
  
 // ── Helper functies voor mijlpalen ─────────────────────────────
@@ -75,7 +66,7 @@ export async function voegStappenToeAanTotaal(uid, aantal) {
   }
 }
 
-// 👇 NIEUW: Helper - afbeelding comprimeren naar max 512x512
+// ── Helper: afbeelding comprimeren ─────────────────────────────
 async function compressImage(file) {
   return new Promise((resolve) => {
     const img = new Image()
@@ -112,11 +103,10 @@ async function compressImage(file) {
   })
 }
 
-// 👇 NIEUW: Helper - profielfoto uploaden naar Firebase Storage
+// ── Helper: profielfoto uploaden ───────────────────────────────
 export async function uploadProfielfoto(uid, file) {
   if (!uid || !file) return null
   
-  // Validatie
   if (!file.type.startsWith('image/')) {
     throw new Error('Alleen afbeeldingen zijn toegestaan')
   }
@@ -125,14 +115,9 @@ export async function uploadProfielfoto(uid, file) {
   }
   
   try {
-    // Comprimeer afbeelding
     const compressed = await compressImage(file)
-    
-    // Upload naar Firebase Storage
     const storageRef = ref(storage, `profile-photos/${uid}.jpg`)
     await uploadBytes(storageRef, compressed)
-    
-    // Haal download URL op
     return await getDownloadURL(storageRef)
   } catch (err) {
     console.error('Fout bij uploaden profielfoto:', err)
@@ -140,16 +125,13 @@ export async function uploadProfielfoto(uid, file) {
   }
 }
 
-// 👇 NIEUW: Helper - profielfoto verwijderen
+// ── Helper: profielfoto verwijderen ────────────────────────────
 export async function verwijderProfielfoto(uid, currentPhotoUrl) {
   if (!uid || !currentPhotoUrl) return
   
   try {
-    // Verwijder uit Storage
     const storageRef = ref(storage, `profile-photos/${uid}.jpg`)
     await deleteObject(storageRef)
-    
-    // Verwijder URL uit Firestore
     await updateDoc(doc(db, 'users', uid), { profielFoto: null })
   } catch (err) {
     console.error('Fout bij verwijderen profielfoto:', err)
@@ -266,7 +248,7 @@ function VerwijderModal({ onBevestigen, onSluiten, laden }) {
   )
 }
 
-// 👇 NIEUW: Modal voor profielfoto wijzigen
+// ── FotoModal Component ────────────────────────────────────────
 function FotoModal({ huidigeFoto, uid, onOpslaan, onSluiten, laden, fout: uploadFout }) {
   const fileInputRef = useRef(null)
   const [preview, setPreview] = useState(huidigeFoto)
@@ -277,7 +259,6 @@ function FotoModal({ huidigeFoto, uid, onOpslaan, onSluiten, laden, fout: upload
     const file = e.target.files?.[0]
     if (!file) return
     
-    // Validatie
     if (!file.type.startsWith('image/')) {
       setLocalFout('Alleen afbeeldingen zijn toegestaan')
       return
@@ -328,7 +309,6 @@ function FotoModal({ huidigeFoto, uid, onOpslaan, onSluiten, laden, fout: upload
           <button onClick={onSluiten} className="text-white/30 hover:text-white transition-colors text-xl leading-none">x</button>
         </div>
         
-        {/* Preview */}
         <div className="flex flex-col items-center gap-3">
           <div className="w-24 h-24 rounded-2xl bg-[#84cc16]/10 border border-[#84cc16]/25 flex items-center justify-center overflow-hidden">
             {preview ? (
@@ -372,7 +352,6 @@ function FotoModal({ huidigeFoto, uid, onOpslaan, onSluiten, laden, fout: upload
           )}
         </div>
         
-        {/* Actions */}
         <div className="flex gap-3 pt-2">
           <button type="button" onClick={onSluiten} className="flex-1 py-2.5 bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-white/50 hover:text-white text-sm font-medium rounded-xl transition-all">
             Annuleren
@@ -480,28 +459,21 @@ export default function Profiel() {
   const { user, updateNaam, verwijderAccount } = useAuthContext()
   const navigate = useNavigate()
  
-<<<<<<< Updated upstream
-  // ✅ Gebruik useStats hook (zelfde als Dashboard) voor consistente data
+  // ✅ useStats voor stappen-data (consistent met Dashboard)
   const { totaalStappen, dagdoel: statsDagdoel, laden: statsLaden } = useStats(user?.uid)
-=======
-  const [totalSteps, setTotalSteps] = useState(0)
-  const [teamNaam, setTeamNaam] = useState('')
-  const [dagdoel, setDagdoel] = useState(DEFAULT_DAGDOEL)
-  const [profielFoto, setProfielFoto] = useState(null) // 👇 NIEUW
-  const [laden, setLaden] = useState(true)
->>>>>>> Stashed changes
   const { verdiendeBadges, loading: badgesLaden } = useBadges(user?.uid)
  
-  // Lokale state voor UI interacties
+  // Lokale state voor UI en profielfoto
   const [teamNaam, setTeamNaam] = useState('')
   const [dagdoel, setDagdoel] = useState(DEFAULT_DAGDOEL)
+  const [profielFoto, setProfielFoto] = useState(null)
   const [bewerkOpen, setBewerkOpen] = useState(false)
   const [verwijderOpen, setVerwijderOpen] = useState(false)
-  const [fotoOpen, setFotoOpen] = useState(false) // 👇 NIEUW
+  const [fotoOpen, setFotoOpen] = useState(false)
   const [bewerkLaden, setBewerkLaden] = useState(false)
   const [verwijderLaden, setVerwijderLaden] = useState(false)
-  const [fotoLaden, setFotoLaden] = useState(false) // 👇 NIEUW
-  const [fotoFout, setFotoFout] = useState('') // 👇 NIEUW
+  const [fotoLaden, setFotoLaden] = useState(false)
+  const [fotoFout, setFotoFout] = useState('')
  
   // ── Sync dagdoel vanuit useStats ─────────────────────────────
   useEffect(() => {
@@ -510,53 +482,49 @@ export default function Profiel() {
     }
   }, [statsDagdoel])
  
-  // ── Laad teamnaam eenmalig ───────────────────────────────────
+  // ── Real-time listener voor profielfoto + teamnaam ───────────
   useEffect(() => {
-    if (!user?.teamId || teamNaam) return
-    const loadTeam = async () => {
+    if (!user?.uid) return
+    
+    const unsub = onSnapshot(doc(db, 'users', user.uid), async (snap) => {
       try {
-<<<<<<< Updated upstream
-        const teamSnap = await getDoc(doc(db, 'teams', user.teamId))
-        if (teamSnap.exists()) {
-          setTeamNaam(teamSnap.data().naam ?? '')
-=======
         const data = snap.data() ?? {}
         
-        // Robuuste fallback voor totalSteps
-        const steps = data.totalSteps
-        setTotalSteps(typeof steps === 'number' ? steps : 0)
+        // Profielfoto real-time update
+        if (data.profielFoto !== undefined) {
+          setProfielFoto(data.profielFoto)
+        }
         
-        setDagdoel(data.dagdoel ?? DEFAULT_DAGDOEL)
-        setProfielFoto(data.profielFoto ?? null) // 👇 NIEUW
-        
+        // Teamnaam eenmalig laden
         if (data.teamId && !teamNaam) {
           try {
             const teamSnap = await getDoc(doc(db, 'teams', data.teamId))
-            setTeamNaam(teamSnap.data()?.naam ?? '')
+            if (teamSnap.exists()) {
+              setTeamNaam(teamSnap.data().naam ?? '')
+            }
           } catch (e) {
             console.warn('Kon teamnaam niet laden:', e)
           }
->>>>>>> Stashed changes
         }
       } catch (e) {
-        console.warn('Kon teamnaam niet laden:', e)
+        console.error('Fout bij user snapshot:', e)
       }
-    }
-    loadTeam()
-  }, [user?.teamId, teamNaam])
+    })
+    
+    return () => unsub()
+  }, [user?.uid, teamNaam])
  
   // ── Commit steps to total (live tracker) ─────────────────────
   const handleStappenCommit = useCallback(async (aantal) => {
     if (!user?.uid || !aantal || aantal <= 0) return
     try {
       await voegStappenToeAanTotaal(user.uid, aantal)
-      // useStats luistert automatisch via onSnapshot → auto-update
     } catch (err) {
       console.error('Fout bij committen stappen:', err)
     }
   }, [user?.uid])
 
-  // 👇 NIEUW: Profielfoto uploaden
+  // ── Profielfoto uploaden ─────────────────────────────────────
   async function handleFotoUpload(file) {
     if (!user?.uid) return
     setFotoLaden(true)
@@ -564,7 +532,7 @@ export default function Profiel() {
     try {
       const url = await uploadProfielfoto(user.uid, file)
       await updateDoc(doc(db, 'users', user.uid), { profielFoto: url })
-      setProfielFoto(url)
+      // onSnapshot update zorgt dat profielFoto direct ververst
     } catch (err) {
       setFotoFout(err.message || 'Upload mislukt')
       throw err
@@ -573,14 +541,14 @@ export default function Profiel() {
     }
   }
 
-  // 👇 NIEUW: Profielfoto verwijderen
+  // ── Profielfoto verwijderen ──────────────────────────────────
   async function handleFotoVerwijderen() {
     if (!user?.uid || !profielFoto) return
     setFotoLaden(true)
     setFotoFout('')
     try {
       await verwijderProfielfoto(user.uid, profielFoto)
-      setProfielFoto(null)
+      // onSnapshot update zorgt dat profielFoto direct verdwijnt
     } catch (err) {
       setFotoFout(err.message || 'Verwijderen mislukt')
       throw err
@@ -631,7 +599,7 @@ export default function Profiel() {
     <div className="min-h-screen bg-[#0a0a0a]">
       {bewerkOpen && <BewerkModal huidigeNaam={user?.naam ?? ''} onOpslaan={handleNaamOpslaan} onSluiten={() => setBewerkOpen(false)} laden={bewerkLaden} />}
       {verwijderOpen && <VerwijderModal onBevestigen={handleVerwijderen} onSluiten={() => setVerwijderOpen(false)} laden={verwijderLaden} />}
-      {fotoOpen && <FotoModal huidigeFoto={profielFoto} uid={user?.uid} onOpslaan={handleFotoUpload} onSluiten={() => setFotoOpen(false)} laden={fotoLaden} fout={fotoFout} />} {/* 👇 NIEUW */}
+      {fotoOpen && <FotoModal huidigeFoto={profielFoto} uid={user?.uid} onOpslaan={handleFotoUpload} onSluiten={() => setFotoOpen(false)} laden={fotoLaden} fout={fotoFout} />}
  
       {/* Animated background */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
@@ -640,9 +608,8 @@ export default function Profiel() {
  
       <div className="relative max-w-sm mx-auto px-5 pb-12">
  
-        {/* Header */}
+        {/* Header met profielfoto */}
         <div className="flex items-center gap-4 pt-6 pb-5 border-b border-white/[0.08]">
-          {/* 👇 NIEUW: Avatar met foto of initialen + edit knop */}
           <div className="relative group">
             <div className="w-14 h-14 rounded-2xl bg-[#84cc16]/10 border border-[#84cc16]/25 flex items-center justify-center overflow-hidden flex-shrink-0">
               {profielFoto ? (
@@ -693,10 +660,10 @@ export default function Profiel() {
           </button>
         </div>
  
-        {/* Live stappen — met commit callback */}
+        {/* Live stappen */}
         <LiveStappenCard uid={user?.uid} dagdoel={dagdoel} onStappenCommit={handleStappenCommit} />
  
-        {/* ✅ Total steps — NU VIA useStats (consistent met Dashboard) */}
+        {/* Total steps via useStats */}
         <div className="relative mt-4 p-5 bg-white/[0.03] border border-white/[0.08] rounded-2xl overflow-hidden">
           <div className="absolute -top-8 -right-8 w-24 h-24 bg-[#84cc16]/10 rounded-full blur-2xl pointer-events-none" />
           <p className="text-white/35 text-[10px] uppercase tracking-widest mb-2 font-medium">Totale stappen aller tijden</p>
@@ -721,7 +688,7 @@ export default function Profiel() {
           </div>
         </div>
  
-        {/* Huidig dagdoel weergave */}
+        {/* Dagdoel weergave */}
         <div className="mt-4 px-4 py-3.5 bg-white/[0.02] border border-white/[0.07] rounded-2xl flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <span className="text-lg">🎯</span>
