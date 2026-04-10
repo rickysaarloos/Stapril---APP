@@ -2,10 +2,18 @@
  * Profielpagina voor gebruikersstatistieken en badges.
  * @returns {JSX.Element}
  */
+<<<<<<< Updated upstream
 import { useState, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../context/AuthContext'
 import { doc, getDoc, updateDoc, increment } from 'firebase/firestore'
+=======
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuthContext } from '../context/AuthContext'
+import { doc, getDoc, onSnapshot, updateDoc, increment } from 'firebase/firestore'
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
+>>>>>>> Stashed changes
 import { db } from '../firebase'
 import { useStepTracker } from '../hooks/useStepTracker'
 import { useBadges, ALLE_BADGES } from '../hooks/useBadges'
@@ -29,6 +37,9 @@ const STATUS_LABELS = {
 }
  
 const DEFAULT_DAGDOEL = 10000
+
+// 👇 NIEUW: Firebase Storage instance
+const storage = getStorage()
  
 // ── Helper functies voor mijlpalen ─────────────────────────────
 function getNextMilestone(steps) {
@@ -61,6 +72,88 @@ export async function voegStappenToeAanTotaal(uid, aantal) {
     })
   } catch (err) {
     console.error('Fout bij updaten totalSteps:', err)
+  }
+}
+
+// 👇 NIEUW: Helper - afbeelding comprimeren naar max 512x512
+async function compressImage(file) {
+  return new Promise((resolve) => {
+    const img = new Image()
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    
+    img.onload = () => {
+      let { width, height } = img
+      const MAX_SIZE = 512
+      
+      if (width > height) {
+        if (width > MAX_SIZE) {
+          height *= MAX_SIZE / width
+          width = MAX_SIZE
+        }
+      } else {
+        if (height > MAX_SIZE) {
+          width *= MAX_SIZE / height
+          height = MAX_SIZE
+        }
+      }
+      
+      canvas.width = width
+      canvas.height = height
+      ctx.drawImage(img, 0, 0, width, height)
+      
+      canvas.toBlob(
+        (blob) => resolve(new File([blob], file.name, { type: 'image/jpeg' })),
+        'image/jpeg',
+        0.8
+      )
+    }
+    img.src = URL.createObjectURL(file)
+  })
+}
+
+// 👇 NIEUW: Helper - profielfoto uploaden naar Firebase Storage
+export async function uploadProfielfoto(uid, file) {
+  if (!uid || !file) return null
+  
+  // Validatie
+  if (!file.type.startsWith('image/')) {
+    throw new Error('Alleen afbeeldingen zijn toegestaan')
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    throw new Error('Afbeelding mag maximaal 5MB zijn')
+  }
+  
+  try {
+    // Comprimeer afbeelding
+    const compressed = await compressImage(file)
+    
+    // Upload naar Firebase Storage
+    const storageRef = ref(storage, `profile-photos/${uid}.jpg`)
+    await uploadBytes(storageRef, compressed)
+    
+    // Haal download URL op
+    return await getDownloadURL(storageRef)
+  } catch (err) {
+    console.error('Fout bij uploaden profielfoto:', err)
+    throw err
+  }
+}
+
+// 👇 NIEUW: Helper - profielfoto verwijderen
+export async function verwijderProfielfoto(uid, currentPhotoUrl) {
+  if (!uid || !currentPhotoUrl) return
+  
+  try {
+    // Verwijder uit Storage
+    const storageRef = ref(storage, `profile-photos/${uid}.jpg`)
+    await deleteObject(storageRef)
+    
+    // Verwijder URL uit Firestore
+    await updateDoc(doc(db, 'users', uid), { profielFoto: null })
+  } catch (err) {
+    console.error('Fout bij verwijderen profielfoto:', err)
+    throw err
   }
 }
  
@@ -172,6 +265,132 @@ function VerwijderModal({ onBevestigen, onSluiten, laden }) {
     </div>
   )
 }
+
+// 👇 NIEUW: Modal voor profielfoto wijzigen
+function FotoModal({ huidigeFoto, uid, onOpslaan, onSluiten, laden, fout: uploadFout }) {
+  const fileInputRef = useRef(null)
+  const [preview, setPreview] = useState(huidigeFoto)
+  const [selectedFile, setSelectedFile] = useState(null)
+  const [localFout, setLocalFout] = useState('')
+ 
+  function handleFileSelect(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    
+    // Validatie
+    if (!file.type.startsWith('image/')) {
+      setLocalFout('Alleen afbeeldingen zijn toegestaan')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setLocalFout('Afbeelding mag maximaal 5MB zijn')
+      return
+    }
+    
+    setLocalFout('')
+    setSelectedFile(file)
+    setPreview(URL.createObjectURL(file))
+  }
+ 
+  async function handleSubmit() {
+    if (!selectedFile) return
+    try {
+      await onOpslaan(selectedFile)
+      onSluiten()
+    } catch (err) {
+      // Fout wordt door parent afgehandeld
+    }
+  }
+ 
+  function handleRemove() {
+    setPreview(null)
+    setSelectedFile(null)
+    setLocalFout('')
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+ 
+  useEffect(() => {
+    return () => {
+      if (preview?.startsWith('blob:')) {
+        URL.revokeObjectURL(preview)
+      }
+    }
+  }, [preview])
+ 
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-5">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onSluiten} />
+      <div className="relative w-full max-w-sm bg-[#111] border border-white/10 rounded-2xl p-6 space-y-5">
+        <div className="flex items-center justify-between">
+          <h3 className="text-white font-black text-lg">Profielfoto wijzigen</h3>
+          <button onClick={onSluiten} className="text-white/30 hover:text-white transition-colors text-xl leading-none">x</button>
+        </div>
+        
+        {/* Preview */}
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-24 h-24 rounded-2xl bg-[#84cc16]/10 border border-[#84cc16]/25 flex items-center justify-center overflow-hidden">
+            {preview ? (
+              <img src={preview} alt="Preview" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-[#84cc16] font-black text-2xl">
+                {(uid || 'U').slice(0, 2).toUpperCase()}
+              </span>
+            )}
+          </div>
+          
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+          
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="px-4 py-2 bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-white/70 hover:text-white text-xs font-medium rounded-xl transition-all"
+            >
+              Kies afbeelding
+            </button>
+            {preview && (
+              <button
+                type="button"
+                onClick={handleRemove}
+                className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-xs font-medium rounded-xl transition-all"
+              >
+                Wissen
+              </button>
+            )}
+          </div>
+          
+          {(localFout || uploadFout) && (
+            <p className="text-red-400 text-xs text-center">{localFout || uploadFout}</p>
+          )}
+        </div>
+        
+        {/* Actions */}
+        <div className="flex gap-3 pt-2">
+          <button type="button" onClick={onSluiten} className="flex-1 py-2.5 bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-white/50 hover:text-white text-sm font-medium rounded-xl transition-all">
+            Annuleren
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={laden || !selectedFile}
+            className="flex-1 py-2.5 bg-[#84cc16] hover:bg-[#95d926] disabled:opacity-50 disabled:cursor-not-allowed text-[#0a0a0a] font-bold text-sm rounded-xl transition-all flex items-center justify-center gap-2"
+          >
+            {laden && <span className="w-3.5 h-3.5 border-2 border-black/20 border-t-black/70 rounded-full animate-spin" />}
+            {laden ? 'Uploaden...' : 'Opslaan'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
  
 function BadgeRow({ badge, unlocked }) {
   return (
@@ -261,8 +480,16 @@ export default function Profiel() {
   const { user, updateNaam, verwijderAccount } = useAuthContext()
   const navigate = useNavigate()
  
+<<<<<<< Updated upstream
   // ✅ Gebruik useStats hook (zelfde als Dashboard) voor consistente data
   const { totaalStappen, dagdoel: statsDagdoel, laden: statsLaden } = useStats(user?.uid)
+=======
+  const [totalSteps, setTotalSteps] = useState(0)
+  const [teamNaam, setTeamNaam] = useState('')
+  const [dagdoel, setDagdoel] = useState(DEFAULT_DAGDOEL)
+  const [profielFoto, setProfielFoto] = useState(null) // 👇 NIEUW
+  const [laden, setLaden] = useState(true)
+>>>>>>> Stashed changes
   const { verdiendeBadges, loading: badgesLaden } = useBadges(user?.uid)
  
   // Lokale state voor UI interacties
@@ -270,8 +497,11 @@ export default function Profiel() {
   const [dagdoel, setDagdoel] = useState(DEFAULT_DAGDOEL)
   const [bewerkOpen, setBewerkOpen] = useState(false)
   const [verwijderOpen, setVerwijderOpen] = useState(false)
+  const [fotoOpen, setFotoOpen] = useState(false) // 👇 NIEUW
   const [bewerkLaden, setBewerkLaden] = useState(false)
   const [verwijderLaden, setVerwijderLaden] = useState(false)
+  const [fotoLaden, setFotoLaden] = useState(false) // 👇 NIEUW
+  const [fotoFout, setFotoFout] = useState('') // 👇 NIEUW
  
   // ── Sync dagdoel vanuit useStats ─────────────────────────────
   useEffect(() => {
@@ -285,9 +515,28 @@ export default function Profiel() {
     if (!user?.teamId || teamNaam) return
     const loadTeam = async () => {
       try {
+<<<<<<< Updated upstream
         const teamSnap = await getDoc(doc(db, 'teams', user.teamId))
         if (teamSnap.exists()) {
           setTeamNaam(teamSnap.data().naam ?? '')
+=======
+        const data = snap.data() ?? {}
+        
+        // Robuuste fallback voor totalSteps
+        const steps = data.totalSteps
+        setTotalSteps(typeof steps === 'number' ? steps : 0)
+        
+        setDagdoel(data.dagdoel ?? DEFAULT_DAGDOEL)
+        setProfielFoto(data.profielFoto ?? null) // 👇 NIEUW
+        
+        if (data.teamId && !teamNaam) {
+          try {
+            const teamSnap = await getDoc(doc(db, 'teams', data.teamId))
+            setTeamNaam(teamSnap.data()?.naam ?? '')
+          } catch (e) {
+            console.warn('Kon teamnaam niet laden:', e)
+          }
+>>>>>>> Stashed changes
         }
       } catch (e) {
         console.warn('Kon teamnaam niet laden:', e)
@@ -306,6 +555,39 @@ export default function Profiel() {
       console.error('Fout bij committen stappen:', err)
     }
   }, [user?.uid])
+
+  // 👇 NIEUW: Profielfoto uploaden
+  async function handleFotoUpload(file) {
+    if (!user?.uid) return
+    setFotoLaden(true)
+    setFotoFout('')
+    try {
+      const url = await uploadProfielfoto(user.uid, file)
+      await updateDoc(doc(db, 'users', user.uid), { profielFoto: url })
+      setProfielFoto(url)
+    } catch (err) {
+      setFotoFout(err.message || 'Upload mislukt')
+      throw err
+    } finally {
+      setFotoLaden(false)
+    }
+  }
+
+  // 👇 NIEUW: Profielfoto verwijderen
+  async function handleFotoVerwijderen() {
+    if (!user?.uid || !profielFoto) return
+    setFotoLaden(true)
+    setFotoFout('')
+    try {
+      await verwijderProfielfoto(user.uid, profielFoto)
+      setProfielFoto(null)
+    } catch (err) {
+      setFotoFout(err.message || 'Verwijderen mislukt')
+      throw err
+    } finally {
+      setFotoLaden(false)
+    }
+  }
  
   // ── Handlers ─────────────────────────────────────────────────
   async function handleNaamOpslaan(nieuweNaam) {
@@ -349,6 +631,7 @@ export default function Profiel() {
     <div className="min-h-screen bg-[#0a0a0a]">
       {bewerkOpen && <BewerkModal huidigeNaam={user?.naam ?? ''} onOpslaan={handleNaamOpslaan} onSluiten={() => setBewerkOpen(false)} laden={bewerkLaden} />}
       {verwijderOpen && <VerwijderModal onBevestigen={handleVerwijderen} onSluiten={() => setVerwijderOpen(false)} laden={verwijderLaden} />}
+      {fotoOpen && <FotoModal huidigeFoto={profielFoto} uid={user?.uid} onOpslaan={handleFotoUpload} onSluiten={() => setFotoOpen(false)} laden={fotoLaden} fout={fotoFout} />} {/* 👇 NIEUW */}
  
       {/* Animated background */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
@@ -359,9 +642,37 @@ export default function Profiel() {
  
         {/* Header */}
         <div className="flex items-center gap-4 pt-6 pb-5 border-b border-white/[0.08]">
-          <div className="w-14 h-14 rounded-2xl bg-[#84cc16]/10 border border-[#84cc16]/25 flex items-center justify-center text-[#84cc16] font-black text-lg flex-shrink-0">
-            {initials}
+          {/* 👇 NIEUW: Avatar met foto of initialen + edit knop */}
+          <div className="relative group">
+            <div className="w-14 h-14 rounded-2xl bg-[#84cc16]/10 border border-[#84cc16]/25 flex items-center justify-center overflow-hidden flex-shrink-0">
+              {profielFoto ? (
+                <img src={profielFoto} alt={user?.naam} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-[#84cc16] font-black text-lg">{initials}</span>
+              )}
+            </div>
+            <button
+              onClick={() => setFotoOpen(true)}
+              className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl text-white/90 text-xs font-medium"
+              aria-label="Wijzig profielfoto"
+            >
+              {fotoLaden ? (
+                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                '✎'
+              )}
+            </button>
+            {profielFoto && (
+              <button
+                onClick={(e) => { e.stopPropagation(); handleFotoVerwijderen() }}
+                className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 border-2 border-[#0a0a0a] flex items-center justify-center text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                aria-label="Verwijder profielfoto"
+              >
+                ×
+              </button>
+            )}
           </div>
+          
           <div className="flex-1 min-w-0">
             <p className="text-white font-black text-xl tracking-tight truncate">{user?.naam ?? user?.email}</p>
             {teamNaam && (
@@ -439,6 +750,11 @@ export default function Profiel() {
           </div>
           <button onClick={() => setBewerkOpen(true)} className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-white/[0.03] transition-colors text-left">
             <span className="text-white/70 text-sm">Naam wijzigen</span>
+            <span className="text-white/20 text-xs">-&gt;</span>
+          </button>
+          <div className="border-t border-white/[0.07]" />
+          <button onClick={() => setFotoOpen(true)} className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-white/[0.03] transition-colors text-left">
+            <span className="text-white/70 text-sm">Profielfoto wijzigen</span>
             <span className="text-white/20 text-xs">-&gt;</span>
           </button>
           <div className="border-t border-white/[0.07]" />

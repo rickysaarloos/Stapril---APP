@@ -45,6 +45,10 @@ export default function Dashboard() {
   const [doelFout, setDoelFout] = useState('')
   const [doelOpgeslagen, setDoelOpgeslagen] = useState(false)
  
+  // 👇 NIEUW: Search state voor Klassement
+  const [klassementFilter, setKlassementFilter] = useState('lopers')
+  const [zoekQuery, setZoekQuery] = useState('')
+ 
   const { totaalStappen, doelDagen, streak, laden: statsLaden } = useStats(user?.uid, refreshTrigger)
  
   useEffect(() => {
@@ -271,64 +275,64 @@ export default function Dashboard() {
         </div>
 
         {/* Persoonlijk dagdoel — fade-in delay 3 */}
-<div className="animate-fade-in-delay-3 bg-gradient-to-br from-white/[0.05] to-transparent border border-white/10 backdrop-blur-sm rounded-2xl p-6 shadow-lg shadow-black/10 space-y-5">
-  <div className="flex items-start justify-between">
-    <div className="space-y-1">
-      <h2 className="text-white font-semibold text-lg tracking-tight">Persoonlijk dagdoel</h2>
-      <p className="text-white/40 text-sm">
-        Huidig doel:{' '}
-        <span className="text-white/70 font-medium">{dagdoel.toLocaleString('nl-NL')} stappen</span>
-      </p>
-    </div>
-    <div className="bg-white/5 border border-white/10 rounded-xl p-2 text-lg">
-      🎯
-    </div>
-  </div>
+        <div className="animate-fade-in-delay-3 bg-gradient-to-br from-white/[0.05] to-transparent border border-white/10 backdrop-blur-sm rounded-2xl p-6 shadow-lg shadow-black/10 space-y-5">
+          <div className="flex items-start justify-between">
+            <div className="space-y-1">
+              <h2 className="text-white font-semibold text-lg tracking-tight">Persoonlijk dagdoel</h2>
+              <p className="text-white/40 text-sm">
+                Huidig doel:{' '}
+                <span className="text-white/70 font-medium">{dagdoel.toLocaleString('nl-NL')} stappen</span>
+              </p>
+            </div>
+            <div className="bg-white/5 border border-white/10 rounded-xl p-2 text-lg">
+              🎯
+            </div>
+          </div>
 
-  <form onSubmit={handleDoelOpslaan} noValidate className="flex flex-col sm:flex-row gap-3">
-    <div className="relative flex-1">
-      <input
-        type="number"
-        min="1000"
-        max="100000"
-        placeholder="bijv. 8000"
-        value={doelInput}
-        onChange={(e) => { setDoelInput(e.target.value); setDoelFout('') }}
-        aria-label="Nieuw stapdoel"
-        className="w-full bg-white/5 border border-white/10 focus:border-[#84cc16]/60 focus:ring-2 focus:ring-[#84cc16]/20 rounded-xl px-4 py-3 text-white text-sm placeholder:text-white/25 outline-none transition-all duration-200"
-      />
-    </div>
-    <button
-      type="submit"
-      disabled={doelLaden}
-      className="bg-[#84cc16] hover:bg-[#95d926] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed text-[#0a0a0a] font-semibold text-sm rounded-xl px-6 py-3 transition-all duration-200 shadow-lg shadow-[#84cc16]/20 hover:shadow-[#84cc16]/30 flex items-center justify-center gap-2 min-w-[140px]"
-    >
-      {doelLaden && (
-        <span className="w-4 h-4 border-2 border-black/20 border-t-black/70 rounded-full animate-spin" />
-      )}
-      {doelLaden ? 'Opslaan...' : 'Opslaan'}
-    </button>
-  </form>
+          <form onSubmit={handleDoelOpslaan} noValidate className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <input
+                type="number"
+                min="1000"
+                max="100000"
+                placeholder="bijv. 8000"
+                value={doelInput}
+                onChange={(e) => { setDoelInput(e.target.value); setDoelFout('') }}
+                aria-label="Nieuw stapdoel"
+                className="w-full bg-white/5 border border-white/10 focus:border-[#84cc16]/60 focus:ring-2 focus:ring-[#84cc16]/20 rounded-xl px-4 py-3 text-white text-sm placeholder:text-white/25 outline-none transition-all duration-200"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={doelLaden}
+              className="bg-[#84cc16] hover:bg-[#95d926] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed text-[#0a0a0a] font-semibold text-sm rounded-xl px-6 py-3 transition-all duration-200 shadow-lg shadow-[#84cc16]/20 hover:shadow-[#84cc16]/30 flex items-center justify-center gap-2 min-w-[140px]"
+            >
+              {doelLaden && (
+                <span className="w-4 h-4 border-2 border-black/20 border-t-black/70 rounded-full animate-spin" />
+              )}
+              {doelLaden ? 'Opslaan...' : 'Opslaan'}
+            </button>
+          </form>
 
-  <div className="space-y-3">
-    {doelFout && (
-      <div role="alert" aria-live="polite" className="animate-slide-up bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-red-300 text-sm flex items-center gap-2">
-        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        {doelFout}
-      </div>
-    )}
-    {doelOpgeslagen && (
-      <div role="status" aria-live="polite" className="animate-slide-up bg-[#84cc16]/10 border border-[#84cc16]/20 rounded-xl px-4 py-3 text-[#84cc16] text-sm flex items-center gap-2">
-        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-        </svg>
-        Dagdoel opgeslagen!
-      </div>
-    )}
-  </div>
-</div>
+          <div className="space-y-3">
+            {doelFout && (
+              <div role="alert" aria-live="polite" className="animate-slide-up bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-red-300 text-sm flex items-center gap-2">
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {doelFout}
+              </div>
+            )}
+            {doelOpgeslagen && (
+              <div role="status" aria-live="polite" className="animate-slide-up bg-[#84cc16]/10 border border-[#84cc16]/20 rounded-xl px-4 py-3 text-[#84cc16] text-sm flex items-center gap-2">
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Dagdoel opgeslagen!
+              </div>
+            )}
+          </div>
+        </div>
  
         {/* Stappen invoer — fade-in delay 3 */}
         <div className="animate-fade-in-delay-3 bg-white/[0.03] border border-white/5 rounded-2xl p-6 space-y-4">
@@ -399,9 +403,68 @@ export default function Dashboard() {
           <StappenGrafiek uid={user?.uid} refresh={refreshTrigger} />
         </div>
  
-        {/* Klassement — fade-in delay 4 */}
-        <div className="animate-fade-in-delay-4">
-          <Klassement />
+        {/* Klassement — fade-in delay 4 + zoekbalk */}
+        <div className="animate-fade-in-delay-4 space-y-4">
+          
+          {/* Zoekbalk met toggle */}
+          <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+            
+            {/* Toggle: Lopers / Teams */}
+            <div className="flex bg-white/5 rounded-xl p-1 border border-white/10 shrink-0">
+              <button
+                type="button"
+                onClick={() => { setKlassementFilter('lopers'); setZoekQuery('') }}
+                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+                  klassementFilter === 'lopers'
+                    ? 'bg-[#84cc16] text-[#0a0a0a] shadow-sm'
+                    : 'text-white/50 hover:text-white'
+                }`}
+              >
+                 Lopers
+              </button>
+              <button
+                type="button"
+                onClick={() => { setKlassementFilter('teams'); setZoekQuery('') }}
+                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+                  klassementFilter === 'teams'
+                    ? 'bg-[#84cc16] text-[#0a0a0a] shadow-sm'
+                    : 'text-white/50 hover:text-white'
+                }`}
+              >
+                 Teams
+              </button>
+            </div>
+
+            {/* Zoekinput */}
+            <div className="relative flex-1">
+              <input
+                type="text"
+                placeholder={`Zoek ${klassementFilter === 'lopers' ? 'deelnemer...' : 'team...'}`}
+                value={zoekQuery}
+                onChange={(e) => setZoekQuery(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 focus:border-[#84cc16]/60 focus:ring-2 focus:ring-[#84cc16]/20 rounded-xl pl-10 pr-4 py-2.5 text-white text-sm placeholder:text-white/30 outline-none transition-all"
+              />
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 text-sm">
+                
+              </span>
+              {zoekQuery && (
+                <button
+                  type="button"
+                  onClick={() => setZoekQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white text-xs"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Klassement component met search props */}
+          <Klassement 
+            filterType={klassementFilter} 
+            zoekQuery={zoekQuery} 
+          />
+          
         </div>
  
         {/* Challenge voortgang — fade-in delay 4 */}

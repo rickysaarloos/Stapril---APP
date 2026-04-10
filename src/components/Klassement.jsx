@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useKlassement } from '../hooks/useKlassement'
 import { useLopers } from '../hooks/useLopers'
 import { useAuthContext } from '../context/AuthContext'
@@ -87,13 +87,33 @@ function LoperRij({ loper, isEigen }) {
   )
 }
  
-export default function Klassement() {
+export default function Klassement({ filterType = 'lopers', zoekQuery = '' }) {
   const { user } = useAuthContext()
   const { klassement, laden: teamsLaden } = useKlassement()
   const { lopers, laden: lopersLaden } = useLopers()
   const [actieveTab, setActieveTab] = useState('teams')
  
   const laden = actieveTab === 'teams' ? teamsLaden : lopersLaden
+ 
+  // 👇 NIEUW: Filter logica op basis van zoekQuery
+  const gefilterdeTeams = useMemo(() => {
+    if (!zoekQuery.trim()) return klassement
+    const query = zoekQuery.toLowerCase()
+    return klassement.filter(team => 
+      team.naam?.toLowerCase().includes(query)
+    )
+  }, [klassement, zoekQuery])
+ 
+  const gefilterdeLopers = useMemo(() => {
+    if (!zoekQuery.trim()) return lopers
+    const query = zoekQuery.toLowerCase()
+    return lopers.filter(loper => 
+      loper.naam?.toLowerCase().includes(query)
+    )
+  }, [lopers, zoekQuery])
+ 
+  // Gebruik de interne tab voor weergave, maar laat filterType van Dashboard de zoekcontext bepalen
+  const data = actieveTab === 'teams' ? gefilterdeTeams : gefilterdeLopers
  
   return (
     <div className="bg-white/[0.03] border border-white/5 rounded-2xl overflow-hidden">
@@ -125,41 +145,72 @@ export default function Klassement() {
         </div>
       </div>
  
+      {/* Zoekresultaten indicator */}
+      {zoekQuery.trim() && (
+        <div className="px-5 py-2 bg-[#84cc16]/5 border-b border-white/5 flex items-center justify-between">
+          <span className="text-xs text-[#84cc16]">
+            {data.length} resultaat{data.length !== 1 ? 'en' : ''} voor "{zoekQuery}"
+          </span>
+          <button 
+            onClick={() => setZoekQuery('')}
+            className="text-xs text-white/40 hover:text-white"
+          >
+            Wissen ✕
+          </button>
+        </div>
+      )}
+ 
       {/* Inhoud */}
       {laden ? (
         <div className="flex items-center justify-center h-48">
           <div className="w-5 h-5 border-2 border-[#84cc16]/30 border-t-[#84cc16] rounded-full animate-spin" />
         </div>
       ) : actieveTab === 'teams' ? (
-        klassement.length === 0 ? (
+        data.length === 0 ? (
           <div className="p-6 text-center">
-            <p className="text-white/30 text-sm">Nog geen teams in het klassement.</p>
+            <p className="text-white/30 text-sm">
+              {zoekQuery.trim() 
+                ? `Geen teams gevonden voor "${zoekQuery}"` 
+                : 'Nog geen teams in het klassement.'}
+            </p>
           </div>
         ) : (
           <div className="divide-y divide-white/5">
-            {klassement.map((team, i) => (
-              <TeamRij
-                key={team.id}
-                team={{ ...team, positie: i + 1 }}
-                isEigen={team.id === user?.teamId}
-              />
-            ))}
+            {data.map((team, i) => {
+              // Bereken de werkelijke positie in de ongefilterde lijst
+              const origineleIndex = klassement.findIndex(t => t.id === team.id)
+              return (
+                <TeamRij
+                  key={team.id}
+                  team={{ ...team, positie: origineleIndex + 1 }}
+                  isEigen={team.id === user?.teamId}
+                />
+              )
+            })}
           </div>
         )
       ) : (
-        lopers.length === 0 ? (
+        data.length === 0 ? (
           <div className="p-6 text-center">
-            <p className="text-white/30 text-sm">Nog geen lopers met stappen.</p>
+            <p className="text-white/30 text-sm">
+              {zoekQuery.trim() 
+                ? `Geen lopers gevonden voor "${zoekQuery}"` 
+                : 'Nog geen lopers met stappen.'}
+            </p>
           </div>
         ) : (
           <div className="divide-y divide-white/5">
-            {lopers.map((loper, i) => (
-              <LoperRij
-                key={loper.uid}
-                loper={{ ...loper, positie: i + 1 }}
-                isEigen={loper.uid === user?.uid}
-              />
-            ))}
+            {data.map((loper, i) => {
+              // Bereken de werkelijke positie in de ongefilterde lijst
+              const origineleIndex = lopers.findIndex(l => l.uid === loper.uid)
+              return (
+                <LoperRij
+                  key={loper.uid}
+                  loper={{ ...loper, positie: origineleIndex + 1 }}
+                  isEigen={loper.uid === user?.uid}
+                />
+              )
+            })}
           </div>
         )
       )}
