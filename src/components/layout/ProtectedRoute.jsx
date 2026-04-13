@@ -34,5 +34,7 @@ export default function ProtectedRoute({ children, adminOnly = false }) {
   if (!user) return <Navigate to="/login" replace />
   if (adminOnly && user.role !== 'admin') return <Navigate to="/dashboard" replace />
 
+  // ✅ Gewoon children teruggeven. De StepTrackerProvider zit nu in App.jsx
+  // zodat deze NIET unmount bij navigatie en de teller gewoon doorloopt.
   return children
 }

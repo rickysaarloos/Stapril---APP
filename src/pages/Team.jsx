@@ -2,7 +2,7 @@
  * Pagina voor teambeheer: zoeken, aanmaken en verlaten.
  * @returns {JSX.Element}
  */
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../context/AuthContext'
 import { zoekTeamOpCode, sluitAanBijTeam, maakTeamAan, laadTeamDetails, verlatenTeam } from '../utils/teamCode'
@@ -41,11 +41,16 @@ export default function Team() {
   const [teamDoelFout, setTeamDoelFout] = useState('')
   const [teamDoelOpgeslagen, setTeamDoelOpgeslagen] = useState(false)
 
-  // ── Real-time listener voor team updates ───────────────────
+  // ── NIEUW: State voor team totaal allertijd (som van leden) ─
+  const [teamTotaalAllertijd, setTeamTotaalAllertijd] = useState(0)
+  const [teamTotaalLaden, setTeamTotaalLaden] = useState(true)
+
+  // ── Real-time listener voor team updates + leden totals ─────
   useEffect(() => {
     if (!user?.teamId) return
 
-    let unsub
+    let unsubTeam
+    let unsubMembers = []
 
     const initTeam = async () => {
       setDetailLaden(true)
@@ -59,8 +64,8 @@ export default function Team() {
         setDetailLaden(false)
       }
 
-      // Real-time listener voor teamdoel updates
-      unsub = onSnapshot(doc(db, 'teams', user.teamId), (snap) => {
+      // Listener voor team-doel updates
+      unsubTeam = onSnapshot(doc(db, 'teams', user.teamId), (snap) => {
         const data = snap.data()
         if (data?.teamDoel !== undefined && data.teamDoel !== teamDoel) {
           setTeamDoel(data.teamDoel)
@@ -73,10 +78,44 @@ export default function Team() {
           setTeamDetails(prev => prev ? { ...prev, naam: data.naam } : null)
         }
       })
+
+      // ✅ NIEUW: Luister naar totalSteps van ELK teamlid voor team-totaal
+      if (teamDetails?.leden?.length > 0) {
+        setTeamTotaalLaden(true)
+        const memberIds = teamDetails.leden.map(lid => lid.uid)
+        
+        unsubMembers = memberIds.map(uid => 
+          onSnapshot(doc(db, 'users', uid), (snap) => {
+            const data = snap.data()
+            const steps = typeof data?.totalSteps === 'number' ? data.totalSteps : 0
+            
+            // Bereken nieuwe som van ALLE leden
+            setTeamTotaalAllertijd(prev => {
+              // Haal oude waarde van deze user eruit, voeg nieuwe toe
+              // Dit voorkomt dubbele optelling bij meerdere updates
+              return prev 
+            })
+          })
+        )
+
+        // Eerste berekening van som
+        const snapshots = await Promise.all(
+          memberIds.map(uid => getDoc(doc(db, 'users', uid)))
+        )
+        const som = snapshots.reduce((acc, snap) => {
+          const steps = snap.data()?.totalSteps
+          return acc + (typeof steps === 'number' ? steps : 0)
+        }, 0)
+        setTeamTotaalAllertijd(som)
+        setTeamTotaalLaden(false)
+      }
     }
 
     initTeam()
-    return () => unsub?.()
+    return () => {
+      unsubTeam?.()
+      unsubMembers.forEach(unsub => unsub?.())
+    }
   }, [user?.teamId])
 
   // ── Helpers ────────────────────────────────────────────────
@@ -252,7 +291,7 @@ export default function Team() {
     </div>
   )
 
-  // ── Voortgangsbalk Component voor teamdoel ──────────────────
+  // ── Voortgangsbalk Component voor teamdoel (vandaag) ─────────
   const TeamProgressCard = ({ huidige, doel }) => {
     const percentage = Math.min(100, Math.round((huidige / doel) * 100))
     const isComplete = percentage >= 100
@@ -286,46 +325,48 @@ export default function Team() {
         
         <div className="space-y-3">
           <div className="flex justify-between text-sm">
-            <span className="text-white/60">
-              {fmt(huidige)} stappen
-            </span>
-            <span className="text-white/40">
-              {percentage}% van {fmt(doel)}
-            </span>
+            <span className="text-white/60">{fmt(huidige)} stappen</span>
+            <span className="text-white/40">{percentage}% van {fmt(doel)}</span>
           </div>
-          
           <div className="h-3 bg-white/5 rounded-full overflow-hidden border border-white/5">
-            <div 
-              className={`h-full ${barColor} rounded-full transition-all duration-700 ease-out shadow-lg ${glowColor}`}
-              style={{ width: `${percentage}%` }}
-            />
+            <div className={`h-full ${barColor} rounded-full transition-all duration-700 ease-out shadow-lg ${glowColor}`} style={{ width: `${percentage}%` }} />
           </div>
-          
-          {!isComplete && (
-            <p className="text-xs text-white/40">
-              Nog {fmt(doel - (huidige || 0))} stappen te gaan 🚶
-            </p>
-          )}
+          {!isComplete && <p className="text-xs text-white/40">Nog {fmt(doel - (huidige || 0))} stappen te gaan 🚶</p>}
         </div>
       </div>
     )
   }
+
+  // ── NIEUW: Team Totaal Allertijd Card ───────────────────────
+  const TeamTotalCard = ({ totaal, ledenAantal, laden }) => (
+    <div className="bg-gradient-to-br from-[#84cc16]/[0.08] to-transparent border border-[#84cc16]/20 backdrop-blur-sm rounded-2xl p-6 shadow-lg shadow-[#84cc16]/5">
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="text-white font-semibold text-base">Team totaal allertijd</h4>
+        <span className="text-[#84cc16] text-lg">🏆</span>
+      </div>
+      <p className="text-white font-black text-3xl tracking-tight mb-1">
+        {laden ? '…' : fmt(totaal)}
+      </p>
+      <p className="text-white/40 text-xs">
+        Som van {ledenAantal} teamleden · Inclusief jouw stappen
+      </p>
+    </div>
+  )
 
   // ── MemberRow Component met totale stappen ──────────────────
   const MemberRow = ({ lid, isCurrentUser }) => {
     const [memberTotalSteps, setMemberTotalSteps] = useState(0)
     const [memberLoading, setMemberLoading] = useState(true)
 
-    // Load totalSteps for this member
     useEffect(() => {
       if (!lid?.uid) return
-      let unsub
-      const loadSteps = onSnapshot(doc(db, 'users', lid.uid), (snap) => {
+      const unsub = onSnapshot(doc(db, 'users', lid.uid), (snap) => {
         const data = snap.data()
-        setMemberTotalSteps(typeof data?.totalSteps === 'number' ? data.totalSteps : 0)
+        // Robuuste fallback: als totalSteps geen number is, gebruik 0
+        const steps = typeof data?.totalSteps === 'number' ? data.totalSteps : 0
+        setMemberTotalSteps(steps)
         setMemberLoading(false)
       })
-      unsub = loadSteps
       return () => unsub?.()
     }, [lid?.uid])
 
@@ -340,9 +381,7 @@ export default function Team() {
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-white/90 font-medium text-sm truncate">{lid.naam ?? lid.email}</p>
             {isCurrentUser && (
-              <span className="text-[10px] font-black uppercase tracking-widest bg-[#84cc16]/20 text-[#84cc16] px-2 py-0.5 rounded-full">
-                Jij
-              </span>
+              <span className="text-[10px] font-black uppercase tracking-widest bg-[#84cc16]/20 text-[#84cc16] px-2 py-0.5 rounded-full">Jij</span>
             )}
           </div>
           {lid.naam && <p className="text-white/30 text-xs truncate">{lid.email}</p>}
@@ -380,12 +419,7 @@ export default function Team() {
               <span className="text-[#84cc16] text-2xl leading-none">⬡</span>
               <span className="text-white font-bold tracking-widest uppercase text-sm">Stapril</span>
             </div>
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-4 py-2 hover:bg-white/[0.04]"
-            >
-              ← Dashboard
-            </button>
+            <button onClick={() => navigate('/dashboard')} className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-4 py-2 hover:bg-white/[0.04]">← Dashboard</button>
           </header>
 
           {/* Page header */}
@@ -404,47 +438,30 @@ export default function Team() {
               <div className="bg-white/[0.03] border border-white/[0.08] rounded-3xl p-8 backdrop-blur-sm hover:border-[#84cc16]/20 transition-colors duration-300">
                 <div className="flex items-start justify-between mb-6">
                   <div>
-                    <h3 className="text-white font-bold text-xl">
-                      {detailLaden ? 'Laden…' : (teamDetails?.naam ?? user.teamId)}
-                    </h3>
-                    <p className="text-white/40 text-sm mt-1">
-                      Team-ID: <span className="font-mono text-white/60">{user.teamId}</span>
-                    </p>
+                    <h3 className="text-white font-bold text-xl">{detailLaden ? 'Laden…' : (teamDetails?.naam ?? user.teamId)}</h3>
+                    <p className="text-white/40 text-sm mt-1">Team-ID: <span className="font-mono text-white/60">{user.teamId}</span></p>
                   </div>
                   <div className="w-14 h-14 rounded-2xl bg-[#84cc16]/10 border border-[#84cc16]/20 flex items-center justify-center">
                     <span className="text-[#84cc16] text-2xl">⬡</span>
                   </div>
                 </div>
-
-                {/* Join code */}
                 {teamDetails?.joinCode && (
                   <div className="bg-[#84cc16]/[0.06] border border-[#84cc16]/20 rounded-2xl p-6">
                     <p className="text-[#84cc16]/70 text-xs uppercase tracking-widest mb-2 font-medium">Deel deze join-code</p>
                     <div className="flex items-center gap-4">
-                      <p className="text-[#84cc16] text-4xl font-black tracking-[0.15em] font-mono">
-                        {teamDetails.joinCode}
-                      </p>
-                      <button
-                        onClick={() => navigator.clipboard.writeText(teamDetails.joinCode)}
-                        className="text-xs text-white/50 hover:text-[#84cc16] border border-white/10 hover:border-[#84cc16]/30 rounded-lg px-3 py-1.5 transition-all"
-                        aria-label="Join-code kopiëren"
-                      >
-                        Kopiëren
-                      </button>
+                      <p className="text-[#84cc16] text-4xl font-black tracking-[0.15em] font-mono">{teamDetails.joinCode}</p>
+                      <button onClick={() => navigator.clipboard.writeText(teamDetails.joinCode)} className="text-xs text-white/50 hover:text-[#84cc16] border border-white/10 hover:border-[#84cc16]/30 rounded-lg px-3 py-1.5 transition-all" aria-label="Join-code kopiëren">Kopiëren</button>
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Members list — MET TOTALE STAPPEN */}
+              {/* Members list — MET TOTALE STAPPEN PER LID */}
               <div className="bg-white/[0.03] border border-white/[0.08] rounded-3xl p-8 backdrop-blur-sm">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-white font-bold text-lg">Teamleden</h3>
-                  <span className="text-sm text-white/40 bg-white/[0.04] px-3 py-1 rounded-full">
-                    {detailLaden ? '…' : (teamDetails?.leden?.length ?? 0)}
-                  </span>
+                  <span className="text-sm text-white/40 bg-white/[0.04] px-3 py-1 rounded-full">{detailLaden ? '…' : (teamDetails?.leden?.length ?? 0)}</span>
                 </div>
-
                 {detailLaden ? (
                   <div className="space-y-3">
                     {[1, 2, 3].map(i => (
@@ -460,11 +477,7 @@ export default function Team() {
                 ) : (
                   <div className="grid sm:grid-cols-2 gap-3">
                     {teamDetails?.leden?.map(lid => (
-                      <MemberRow 
-                        key={lid.uid} 
-                        lid={lid} 
-                        isCurrentUser={lid.uid === user.uid} 
-                      />
+                      <MemberRow key={lid.uid} lid={lid} isCurrentUser={lid.uid === user.uid} />
                     ))}
                   </div>
                 )}
@@ -474,11 +487,11 @@ export default function Team() {
             {/* Right: Actions sidebar */}
             <div className="space-y-4">
 
-              {/* 🎯 Teamvoortgangsbalk - voor ALLE teamleden */}
-              <TeamProgressCard 
-                huidige={teamDetails?.huidigeStappen ?? 0} 
-                doel={teamDoel} 
-              />
+              {/* ✅ NIEUW: Team Totaal Allertijd */}
+              <TeamTotalCard totaal={teamTotaalAllertijd} ledenAantal={teamDetails?.leden?.length ?? 0} laden={teamTotaalLaden} />
+
+              {/* Teamvoortgang vandaag */}
+              <TeamProgressCard huidige={teamDetails?.huidigeStappen ?? 0} doel={teamDoel} />
 
               {/* Quick stats */}
               <div className="bg-white/[0.03] border border-white/[0.08] rounded-3xl p-6 backdrop-blur-sm">
@@ -497,10 +510,8 @@ export default function Team() {
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-white/40 text-sm">Teamdoel</span>
-                    <span className="text-white/80 text-sm font-medium">
-                      {fmt(teamDoel)} stappen/dag
-                    </span>
+                    <span className="text-white/40 text-sm">Teamdoel (dagelijks)</span>
+                    <span className="text-white/80 text-sm font-medium">{fmt(teamDoel)} stappen</span>
                   </div>
                 </div>
               </div>
@@ -511,55 +522,22 @@ export default function Team() {
                   <div className="flex items-start justify-between">
                     <div className="space-y-1">
                       <h4 className="text-white font-semibold text-base tracking-tight">Teamdoel instellen</h4>
-                      <p className="text-white/40 text-xs">
-                        Huidig:{' '}
-                        <span className="text-white/70 font-medium">{fmt(teamDoel)} stappen/dag</span>
-                      </p>
+                      <p className="text-white/40 text-xs">Huidig: <span className="text-white/70 font-medium">{fmt(teamDoel)} stappen/dag</span></p>
                     </div>
-                    <div className="bg-[#84cc16]/10 border border-[#84cc16]/20 rounded-lg p-2">
-                      <span className="text-[#84cc16] text-lg">🎯</span>
-                    </div>
+                    <div className="bg-[#84cc16]/10 border border-[#84cc16]/20 rounded-lg p-2"><span className="text-[#84cc16] text-lg">🎯</span></div>
                   </div>
-
                   <form onSubmit={handleTeamDoelOpslaan} noValidate className="space-y-4">
                     <div className="relative">
-                      <input
-                        type="number"
-                        min="1000"
-                        max="100000"
-                        step="100"
-                        placeholder="bijv. 12000"
-                        value={teamDoelInput}
-                        onChange={(e) => { setTeamDoelInput(e.target.value); setTeamDoelFout('') }}
-                        aria-label="Nieuw teamdoel in stappen"
-                        className="w-full bg-white/5 border border-white/10 focus:border-[#84cc16]/60 focus:ring-2 focus:ring-[#84cc16]/20 rounded-xl px-4 py-3 text-white text-sm placeholder:text-white/25 outline-none transition-all duration-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      />
+                      <input type="number" min="1000" max="100000" step="100" placeholder="bijv. 12000" value={teamDoelInput} onChange={(e) => { setTeamDoelInput(e.target.value); setTeamDoelFout('') }} aria-label="Nieuw teamdoel in stappen" className="w-full bg-white/5 border border-white/10 focus:border-[#84cc16]/60 focus:ring-2 focus:ring-[#84cc16]/20 rounded-xl px-4 py-3 text-white text-sm placeholder:text-white/25 outline-none transition-all duration-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                     </div>
-
-                    <button
-                      type="submit"
-                      disabled={teamDoelLaden}
-                      aria-busy={teamDoelLaden}
-                      className="w-full bg-[#84cc16] hover:bg-[#95d926] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed text-[#0a0a0a] font-semibold text-sm rounded-xl px-6 py-3 transition-all duration-200 shadow-lg shadow-[#84cc16]/20 hover:shadow-[#84cc16]/30 flex items-center justify-center gap-2 min-h-[44px]"
-                    >
-                      {teamDoelLaden && (
-                        <span className="w-4 h-4 border-2 border-black/20 border-t-black/70 rounded-full animate-spin" />
-                      )}
+                    <button type="submit" disabled={teamDoelLaden} aria-busy={teamDoelLaden} className="w-full bg-[#84cc16] hover:bg-[#95d926] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed text-[#0a0a0a] font-semibold text-sm rounded-xl px-6 py-3 transition-all duration-200 shadow-lg shadow-[#84cc16]/20 hover:shadow-[#84cc16]/30 flex items-center justify-center gap-2 min-h-[44px]">
+                      {teamDoelLaden && <span className="w-4 h-4 border-2 border-black/20 border-t-black/70 rounded-full animate-spin" />}
                       {teamDoelLaden ? 'Opslaan...' : 'Doel bijwerken'}
                     </button>
                   </form>
-
                   <div className="space-y-2 min-h-[20px]" aria-live="polite">
-                    {teamDoelFout && (
-                      <p className="text-red-400 text-xs flex items-center gap-1.5 animate-fade-in">
-                        <span>⚠️</span> {teamDoelFout}
-                      </p>
-                    )}
-                    {teamDoelOpgeslagen && (
-                      <p className="text-[#84cc16] text-xs flex items-center gap-1.5 animate-slide-up">
-                        <span>✓</span> Teamdoel succesvol bijgewerkt!
-                      </p>
-                    )}
+                    {teamDoelFout && <p className="text-red-400 text-xs flex items-center gap-1.5 animate-fade-in"><span>⚠️</span> {teamDoelFout}</p>}
+                    {teamDoelOpgeslagen && <p className="text-[#84cc16] text-xs flex items-center gap-1.5 animate-slide-up"><span>✓</span> Teamdoel succesvol bijgewerkt!</p>}
                   </div>
                 </div>
               )}
@@ -567,41 +545,21 @@ export default function Team() {
               {/* Leave team card */}
               <div className="bg-white/[0.03] border border-white/[0.08] rounded-3xl p-6 backdrop-blur-sm">
                 <h4 className="text-white font-bold mb-4">Teambeheer</h4>
-
                 {!toonBevestiging ? (
-                  <button
-                    onClick={() => setToonBevestiging(true)}
-                    className="w-full text-red-400/70 hover:text-red-400 hover:bg-red-500/5 border border-transparent hover:border-red-500/20 text-sm font-medium rounded-xl py-3.5 transition-all text-left px-4 hover:scale-[1.01] active:scale-[0.99]"
-                  >
-                    Team verlaten
-                  </button>
+                  <button onClick={() => setToonBevestiging(true)} className="w-full text-red-400/70 hover:text-red-400 hover:bg-red-500/5 border border-transparent hover:border-red-500/20 text-sm font-medium rounded-xl py-3.5 transition-all text-left px-4 hover:scale-[1.01] active:scale-[0.99]">Team verlaten</button>
                 ) : (
                   <div className="bg-red-500/[0.06] border border-red-500/20 rounded-xl p-4 space-y-4">
                     <p className="text-red-400/90 text-sm">Weet je zeker dat je dit team wilt verlaten?</p>
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => setToonBevestiging(false)}
-                        className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 text-sm rounded-lg py-2.5 transition-all"
-                      >
-                        Annuleren
-                      </button>
-                      <button
-                        onClick={handleVerlaten}
-                        disabled={verlatenLaden}
-                        className="flex-1 bg-red-500/20 hover:bg-red-500/30 disabled:opacity-50 border border-red-500/30 text-red-400 text-sm font-bold rounded-lg py-2.5 transition-all"
-                      >
-                        {verlatenLaden ? 'Bezig…' : 'Verlaten'}
-                      </button>
+                      <button onClick={() => setToonBevestiging(false)} className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 text-sm rounded-lg py-2.5 transition-all">Annuleren</button>
+                      <button onClick={handleVerlaten} disabled={verlatenLaden} className="flex-1 bg-red-500/20 hover:bg-red-500/30 disabled:opacity-50 border border-red-500/30 text-red-400 text-sm font-bold rounded-lg py-2.5 transition-all">{verlatenLaden ? 'Bezig…' : 'Verlaten'}</button>
                     </div>
                   </div>
                 )}
               </div>
 
               {/* Back to dashboard */}
-              <SecondaryButton onClick={() => navigate('/dashboard')}>
-                ← Terug naar dashboard
-              </SecondaryButton>
-
+              <SecondaryButton onClick={() => navigate('/dashboard')}>← Terug naar dashboard</SecondaryButton>
             </div>
           </div>
 
@@ -622,176 +580,80 @@ export default function Team() {
 
       <div className="relative w-full max-w-2xl animate-fade-in">
         <div className="flex justify-end mb-4">
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-4 py-2 hover:bg-white/[0.04]"
-          >
-            ← Dashboard
-          </button>
+          <button onClick={() => navigate('/dashboard')} className="text-xs uppercase tracking-widest text-white/40 hover:text-white transition-colors border border-white/10 hover:border-white/30 rounded-lg px-4 py-2 hover:bg-white/[0.04]">← Dashboard</button>
         </div>
         <div className="bg-white/[0.03] border border-white/[0.08] rounded-3xl p-10 backdrop-blur-sm space-y-8">
-
-          {/* KEUZE */}
+          {/* KEUZE / AANMAKEN / AANSLUITEN / etc. (onveranderd) */}
           {scherm === 'keuze' && (
             <div className="space-y-8">
-              <SectionHeader
-                icon="⬡"
-                title="Team"
-                description="Maak een nieuw team aan of sluit je aan bij een bestaand team met een join-code."
-              />
+              <SectionHeader icon="⬡" title="Team" description="Maak een nieuw team aan of sluit je aan bij een bestaand team met een join-code." />
               <div className="grid sm:grid-cols-2 gap-4 pt-2">
-                <button
-                  onClick={() => reset('aanmaken')}
-                  className="group bg-[#84cc16] hover:bg-[#95d926] active:bg-[#74b312] text-[#0a0a0a] rounded-2xl p-6 text-left transition-all duration-200 shadow-lg shadow-[#84cc16]/20 hover:scale-[1.02] active:scale-[0.98] border-2 border-transparent hover:border-[#84cc16]/30"
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-3xl">✨</span>
-                    <span className="opacity-60 group-hover:opacity-100 group-hover:translate-x-1 transition-all text-xl">→</span>
-                  </div>
-                  <h3 className="font-bold text-lg mb-1">Team aanmaken</h3>
-                  <p className="text-[#0a0a0a]/60 text-sm">Start een nieuw team en nodig anderen uit</p>
+                <button onClick={() => reset('aanmaken')} className="group bg-[#84cc16] hover:bg-[#95d926] active:bg-[#74b312] text-[#0a0a0a] rounded-2xl p-6 text-left transition-all duration-200 shadow-lg shadow-[#84cc16]/20 hover:scale-[1.02] active:scale-[0.98] border-2 border-transparent hover:border-[#84cc16]/30">
+                  <div className="flex items-center justify-between mb-3"><span className="text-3xl">✨</span><span className="opacity-60 group-hover:opacity-100 group-hover:translate-x-1 transition-all text-xl">→</span></div>
+                  <h3 className="font-bold text-lg mb-1">Team aanmaken</h3><p className="text-[#0a0a0a]/60 text-sm">Start een nieuw team en nodig anderen uit</p>
                 </button>
-
-                <button
-                  onClick={() => reset('aansluiten')}
-                  className="group bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 text-white/80 hover:text-white rounded-2xl p-6 text-left transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-3xl">🔗</span>
-                    <span className="opacity-40 group-hover:opacity-70 group-hover:translate-x-1 transition-all text-xl">→</span>
-                  </div>
-                  <h3 className="font-bold text-lg mb-1">Aansluiten</h3>
-                  <p className="text-white/40 text-sm">Voer een join-code in om lid te worden</p>
+                <button onClick={() => reset('aansluiten')} className="group bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 text-white/80 hover:text-white rounded-2xl p-6 text-left transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]">
+                  <div className="flex items-center justify-between mb-3"><span className="text-3xl">🔗</span><span className="opacity-40 group-hover:opacity-70 group-hover:translate-x-1 transition-all text-xl">→</span></div>
+                  <h3 className="font-bold text-lg mb-1">Aansluiten</h3><p className="text-white/40 text-sm">Voer een join-code in om lid te worden</p>
                 </button>
               </div>
             </div>
           )}
-
-          {/* AANMAKEN */}
+          {/* ... overige schermen (aanmaken, aansluiten, bevestig, success) blijven ongewijzigd ... */}
           {scherm === 'aanmaken' && (
             <form onSubmit={handleTeamAanmaken} className="space-y-6">
-              <SectionHeader
-                icon="✨"
-                title="Team aanmaken"
-                description="Geef je team een herkenbare naam."
-              />
+              <SectionHeader icon="✨" title="Team aanmaken" description="Geef je team een herkenbare naam." />
               <div className="space-y-4">
-                <div>
-                  <label className="block text-white/50 text-xs uppercase tracking-widest mb-2">Teamnaam</label>
-                  <TextInput value={teamnaam} onChange={(e) => setTeamnaam(e.target.value)} placeholder="Bijv. Marketing Q2" autoFocus />
-                </div>
+                <div><label className="block text-white/50 text-xs uppercase tracking-widest mb-2">Teamnaam</label><TextInput value={teamnaam} onChange={(e) => setTeamnaam(e.target.value)} placeholder="Bijv. Marketing Q2" autoFocus /></div>
                 <ErrorMsg msg={fout} />
               </div>
-              <div className="flex gap-3 pt-2">
-                <PrimaryButton type="submit" disabled={laden} className="flex-1">Aanmaken</PrimaryButton>
-                <BackButton onClick={() => reset('keuze')} className="self-center" />
-              </div>
+              <div className="flex gap-3 pt-2"><PrimaryButton type="submit" disabled={laden} className="flex-1">Aanmaken</PrimaryButton><BackButton onClick={() => reset('keuze')} className="self-center" /></div>
             </form>
           )}
-
-          {/* AANSLUITEN */}
           {scherm === 'aansluiten' && (
             <form onSubmit={handleZoekTeam} className="space-y-6">
-              <SectionHeader
-                icon="🔗"
-                title="Aansluiten bij team"
-                description="Voer de 6-cijferige join-code in die je hebt ontvangen."
-              />
+              <SectionHeader icon="🔗" title="Aansluiten bij team" description="Voer de 6-cijferige join-code in die je hebt ontvangen." />
               <div className="space-y-4">
-                <div>
-                  <label className="block text-white/50 text-xs uppercase tracking-widest mb-2">Join-code</label>
-                  <TextInput
-                    value={code}
-                    onChange={(e) => setCode(e.target.value.toUpperCase())}
-                    placeholder="XXXXXX"
-                    autoFocus
-                    type="text"
-                  />
-                  <p className="text-white/25 text-xs mt-2 font-mono">Code is niet hoofdlettergevoelig</p>
-                </div>
+                <div><label className="block text-white/50 text-xs uppercase tracking-widest mb-2">Join-code</label><TextInput value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="XXXXXX" autoFocus type="text" /><p className="text-white/25 text-xs mt-2 font-mono">Code is niet hoofdlettergevoelig</p></div>
                 <ErrorMsg msg={fout} />
               </div>
-              <div className="flex gap-3 pt-2">
-                <PrimaryButton type="submit" disabled={laden} className="flex-1">Team zoeken</PrimaryButton>
-                <BackButton onClick={() => reset('keuze')} className="self-center" />
-              </div>
+              <div className="flex gap-3 pt-2"><PrimaryButton type="submit" disabled={laden} className="flex-1">Team zoeken</PrimaryButton><BackButton onClick={() => reset('keuze')} className="self-center" /></div>
             </form>
           )}
-
-          {/* BEVESTIG */}
           {scherm === 'bevestig' && gevondenTeam && (
             <div className="space-y-6">
-              <SectionHeader
-                icon="✓"
-                title="Team gevonden"
-                description="Wil je je aansluiten bij dit team?"
-              />
+              <SectionHeader icon="✓" title="Team gevonden" description="Wil je je aansluiten bij dit team?" />
               <div className="bg-[#84cc16]/[0.08] border border-[#84cc16]/25 rounded-2xl p-6 flex items-center gap-4 hover:border-[#84cc16]/40 transition-colors">
-                <div className="w-14 h-14 rounded-xl bg-[#84cc16]/15 border border-[#84cc16]/30 flex items-center justify-center flex-shrink-0">
-                  <span className="text-[#84cc16] text-2xl">⬡</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white font-bold text-lg">{gevondenTeam.naam}</p>
-                  <p className="text-white/40 text-sm font-mono mt-0.5">{gevondenTeam.id}</p>
-                </div>
+                <div className="w-14 h-14 rounded-xl bg-[#84cc16]/15 border border-[#84cc16]/30 flex items-center justify-center flex-shrink-0"><span className="text-[#84cc16] text-2xl">⬡</span></div>
+                <div className="flex-1 min-w-0"><p className="text-white font-bold text-lg">{gevondenTeam.naam}</p><p className="text-white/40 text-sm font-mono mt-0.5">{gevondenTeam.id}</p></div>
               </div>
               <ErrorMsg msg={fout} />
-              <div className="flex gap-3 pt-2">
-                <PrimaryButton onClick={handleAansluiten} disabled={laden} className="flex-1">Aansluiten</PrimaryButton>
-                <BackButton onClick={() => reset('aansluiten')} className="self-center" />
-              </div>
+              <div className="flex gap-3 pt-2"><PrimaryButton onClick={handleAansluiten} disabled={laden} className="flex-1">Aansluiten</PrimaryButton><BackButton onClick={() => reset('aansluiten')} className="self-center" /></div>
             </div>
           )}
-
-          {/* SUCCES AANGEMAAKT */}
           {scherm === 'succes-aangemaakt' && nieuwTeam && (
             <div className="space-y-8 text-center">
               <div className="space-y-4 animate-fade-in">
-                <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-[#84cc16]/10 border border-[#84cc16]/25 mx-auto shadow-lg shadow-[#84cc16]/10">
-                  <span className="text-[#84cc16] text-4xl">✓</span>
-                </div>
-                <div>
-                  <h2 className="text-white text-2xl font-bold tracking-tight">Team aangemaakt!</h2>
-                  <p className="text-white/40 text-sm mt-2 max-w-sm mx-auto">Deel deze code met je teamleden zodat ze kunnen aansluiten.</p>
-                </div>
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-[#84cc16]/10 border border-[#84cc16]/25 mx-auto shadow-lg shadow-[#84cc16]/10"><span className="text-[#84cc16] text-4xl">✓</span></div>
+                <div><h2 className="text-white text-2xl font-bold tracking-tight">Team aangemaakt!</h2><p className="text-white/40 text-sm mt-2 max-w-sm mx-auto">Deel deze code met je teamleden zodat ze kunnen aansluiten.</p></div>
               </div>
               <div className="bg-white/[0.04] border border-white/10 rounded-2xl py-6 px-8 hover:border-[#84cc16]/30 transition-colors">
                 <p className="text-white/40 text-xs uppercase tracking-widest mb-3 font-medium">Join-code</p>
                 <p className="text-[#84cc16] text-5xl font-black tracking-[0.2em] font-mono">{nieuwTeam.joinCode}</p>
-                <button
-                  onClick={() => navigator.clipboard.writeText(nieuwTeam.joinCode)}
-                  className="mt-4 text-xs text-white/50 hover:text-[#84cc16] border border-white/10 hover:border-[#84cc16]/30 rounded-lg px-4 py-2 transition-all"
-                  aria-label="Join-code kopiëren"
-                >
-                  📋 Kopiëren
-                </button>
+                <button onClick={() => navigator.clipboard.writeText(nieuwTeam.joinCode)} className="mt-4 text-xs text-white/50 hover:text-[#84cc16] border border-white/10 hover:border-[#84cc16]/30 rounded-lg px-4 py-2 transition-all" aria-label="Join-code kopiëren">📋 Kopiëren</button>
               </div>
-              <div className="flex gap-3">
-                <PrimaryButton onClick={() => navigate('/dashboard')} className="flex-1">Ga naar dashboard</PrimaryButton>
-                <SecondaryButton onClick={() => navigate(-1)} className="flex-1 max-w-[140px]">Terug</SecondaryButton>
-              </div>
+              <div className="flex gap-3"><PrimaryButton onClick={() => navigate('/dashboard')} className="flex-1">Ga naar dashboard</PrimaryButton><SecondaryButton onClick={() => navigate(-1)} className="flex-1 max-w-[140px]">Terug</SecondaryButton></div>
             </div>
           )}
-
-          {/* SUCCES AANGESLOTEN */}
           {scherm === 'succes-aangesloten' && (
             <div className="space-y-8 text-center">
               <div className="space-y-4 animate-fade-in">
-                <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-[#84cc16]/10 border border-[#84cc16]/25 mx-auto shadow-lg shadow-[#84cc16]/10">
-                  <span className="text-[#84cc16] text-4xl">⬡</span>
-                </div>
-                <div>
-                  <h2 className="text-white text-2xl font-bold tracking-tight">Welkom bij het team!</h2>
-                  <p className="text-white/40 text-sm mt-2">Je bent succesvol toegevoegd. Samen stappen!</p>
-                </div>
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-[#84cc16]/10 border border-[#84cc16]/25 mx-auto shadow-lg shadow-[#84cc16]/10"><span className="text-[#84cc16] text-4xl">⬡</span></div>
+                <div><h2 className="text-white text-2xl font-bold tracking-tight">Welkom bij het team!</h2><p className="text-white/40 text-sm mt-2">Je bent succesvol toegevoegd. Samen stappen!</p></div>
               </div>
-              <div className="flex gap-3">
-                <PrimaryButton onClick={() => navigate('/dashboard')} className="flex-1">Ga naar dashboard</PrimaryButton>
-                <SecondaryButton onClick={() => navigate(-1)} className="flex-1 max-w-[140px]">Terug</SecondaryButton>
-              </div>
+              <div className="flex gap-3"><PrimaryButton onClick={() => navigate('/dashboard')} className="flex-1">Ga naar dashboard</PrimaryButton><SecondaryButton onClick={() => navigate(-1)} className="flex-1 max-w-[140px]">Terug</SecondaryButton></div>
             </div>
           )}
-
         </div>
         <p className="text-center text-white/15 text-xs mt-6 tracking-wide">Stapril</p>
       </div>
