@@ -167,5 +167,12 @@ export function useStepTracker(uid) {
 
   const pct = Math.min(Math.round((stappen / DAGDOEL) * 100), 100)
 
-  return { stappen, status, startTracking, stopTracking, pct }
+  return { 
+  stappen, 
+  status, 
+  startTracking, 
+  stopTracking, 
+  pct,
+  resetStappen: () => setStappen(0) // ✅ optioneel
+}
 }

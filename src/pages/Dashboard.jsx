@@ -1,15 +1,38 @@
-import { useState, useEffect } from 'react'
+/**
+ * Dashboardpagina voor gebruiker met stappenoverzicht en teamstatus.
+ * @returns {JSX.Element}
+ */
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../context/AuthContext'
 import StappenGrafiek from '../components/StappenGrafiek'
 import Klassement from '../components/Klassement'
 import { useStats } from '../hooks/useStepStats'
+import { useStepTracker } from '../hooks/useStepTracker'
 import { dagVanApril } from '../utils/datum'
 import { laadStappenVandaag, slaStappenOp } from '../utils/stappen'
-import { doc, getDoc, updateDoc } from 'firebase/firestore'
+import { doc, getDoc, updateDoc, increment } from 'firebase/firestore'
 import { db } from '../firebase'
 import { verwerkBadges } from '../hooks/useBadges'
- 
+
+// ── Helper: format getallen ───────────────────────────────────
+function fmt(n) {
+  return n?.toLocaleString('nl-NL') ?? '0'
+}
+
+// ── Helper: update totalSteps in Firestore ─────────────────────
+async function voegStappenToeAanTotaal(uid, aantal) {
+  if (!uid || !aantal || aantal <= 0) return
+  try {
+    await updateDoc(doc(db, 'users', uid), {
+      totalSteps: increment(aantal),
+      lastStepUpdate: new Date().toISOString()
+    })
+  } catch (err) {
+    console.error('Fout bij updaten totalSteps:', err)
+  }
+}
+
 /**
  * Haalt de teamnaam op voor een gegeven teamId.
  * @param {string|null} teamId Team-ID
@@ -20,7 +43,103 @@ async function laadTeamNaam(teamId) {
   const snap = await getDoc(doc(db, 'teams', teamId))
   return snap.exists() ? (snap.data().naam ?? null) : null
 }
- 
+
+// ── LiveStappenCard Component (herbruikbaar) ───────────────────
+function LiveStappenCard({ uid, dagdoel, onStappenCommit, onRefresh }) {
+  const { stappen, status, startTracking, stopTracking } = useStepTracker(uid)
+  
+  const STATUS_LABELS = {
+    idle: null,
+    requesting: 'Toestemming vragen...',
+    tracking: 'Live aan het tellen',
+    unsupported: 'Niet ondersteund',
+    denied: 'Toestemming geweigerd',
+  }
+  
+  const isTracking = status === 'tracking'
+  const isError = status === 'unsupported' || status === 'denied'
+  const pct = dagdoel > 0 ? Math.min(Math.round((stappen / dagdoel) * 100), 100) : 0
+
+  const handleStopTracking = useCallback(() => {
+    if (stappen > 0 && onStappenCommit) {
+      onStappenCommit(stappen)
+    }
+    if (onRefresh) onRefresh()
+    stopTracking()
+  }, [stappen, onStappenCommit, onRefresh, stopTracking])
+
+  return (
+    <div className="animate-fade-in-delay-3 bg-gradient-to-br from-white/[0.05] to-transparent border border-white/10 backdrop-blur-sm rounded-2xl p-6 shadow-lg shadow-black/10 space-y-5">
+      <div className="flex items-start justify-between">
+        <div className="space-y-1">
+          <h2 className="text-white font-semibold text-lg tracking-tight">Stappen vandaag</h2>
+          <p className="text-white/40 text-sm">
+            {isTracking ? 'Beweeg met je apparaat om stappen te tellen' : 'Start tracking om live stappen te meten'}
+          </p>
+        </div>
+        <div className="bg-white/5 border border-white/10 rounded-xl p-2 text-lg">👟</div>
+      </div>
+
+      {/* Live stappen teller */}
+      <div className="flex items-baseline gap-2">
+        <p className="text-white font-black text-4xl tracking-tighter">{fmt(stappen)}</p>
+        <span className="text-white/30 text-sm">stappen</span>
+      </div>
+
+      {/* Status indicator */}
+      {STATUS_LABELS[status] && (
+        <div className="flex items-center gap-1.5">
+          {isTracking && <span className="w-1.5 h-1.5 rounded-full bg-[#84cc16] animate-pulse" />}
+          <span className={`text-xs ${isError ? 'text-red-400' : 'text-white/35'}`}>
+            {STATUS_LABELS[status]}
+          </span>
+        </div>
+      )}
+
+      {/* Start/Stop knop */}
+      {!isError && (
+        <button
+          onClick={isTracking ? handleStopTracking : startTracking}
+          className={`w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 ${
+            isTracking 
+              ? 'bg-red-500/10 border border-red-500/25 text-red-400 hover:bg-red-500/20' 
+              : 'bg-[#84cc16]/10 border border-[#84cc16]/25 text-[#84cc16] hover:bg-[#84cc16]/20'
+          }`}
+        >
+          {isTracking ? (
+            <><span className="w-2 h-2 rounded-sm bg-red-400" />Stoppen & Opslaan</>
+          ) : (
+            <><span className="w-2 h-2 rounded-full bg-[#84cc16]" />Start Live Tracking</>
+          )}
+        </button>
+      )}
+
+      {/* Voortgangsbalk naar dagdoel */}
+      <div className="space-y-2 pt-2">
+        <div className="flex justify-between text-xs text-white/30">
+          <span>Dagdoel</span>
+          <span className="text-white/50">{pct}% van {fmt(dagdoel)}</span>
+        </div>
+        <div className="h-1.5 bg-white/[0.08] rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-[#84cc16] rounded-full transition-all duration-300" 
+            style={{ width: `${pct}%` }} 
+          />
+        </div>
+      </div>
+
+      {/* Foutmeldingen */}
+      {isError && (
+        <p className="text-xs text-red-400/70 bg-red-500/5 border border-red-500/15 rounded-xl px-3 py-2">
+          {status === 'unsupported' 
+            ? 'Je apparaat ondersteunt geen bewegingssensor via de browser.' 
+            : 'Geef toestemming voor de bewegingssensor in je browserinstellingen.'}
+        </p>
+      )}
+    </div>
+  )
+}
+
 /**
  * Dashboardpagina voor gebruiker met stappenoverzicht en teamstatus.
  * @returns {JSX.Element}
@@ -28,124 +147,113 @@ async function laadTeamNaam(teamId) {
 export default function Dashboard() {
   const { user, logout } = useAuthContext()
   const navigate = useNavigate()
- 
+
   const [teamNaam, setTeamNaam] = useState(null)
-  const [stappenVandaag, setStappenVandaag] = useState(null)
-  const [stappenInput, setStappenInput] = useState('')
-  const [stappenLaden, setStappenLaden] = useState(false)
-  const [stappenFout, setStappenFout] = useState('')
-  const [stappenOpgeslagen, setStappenOpgeslagen] = useState(false)
   const [initLaden, setInitLaden] = useState(true)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
- 
+
   // Persoonlijk dagdoel
   const [dagdoel, setDagdoel] = useState(10000)
-  const [doelInput, setDoelInput] = useState('')
-  const [doelLaden, setDoelLaden] = useState(false)
-  const [doelFout, setDoelFout] = useState('')
-  const [doelOpgeslagen, setDoelOpgeslagen] = useState(false)
- 
+
   // 👇 NIEUW: Search state voor Klassement
   const [klassementFilter, setKlassementFilter] = useState('lopers')
   const [zoekQuery, setZoekQuery] = useState('')
- 
+
   const { totaalStappen, doelDagen, streak, laden: statsLaden } = useStats(user?.uid, refreshTrigger)
- 
+
+  // ── Init: laad teamnaam en dagdoel ───────────────────────────
   useEffect(() => {
     if (!user) return
     async function init() {
-      const [naam, stappen, userSnap] = await Promise.all([
-        laadTeamNaam(user.teamId),
-        laadStappenVandaag(user.uid),
-        getDoc(doc(db, 'users', user.uid)),
-      ])
-      setTeamNaam(naam)
-      if (stappen !== null) {
-        setStappenVandaag(stappen)
-        setStappenInput(String(stappen))
+      try {
+        const [naam, userSnap] = await Promise.all([
+          laadTeamNaam(user.teamId),
+          getDoc(doc(db, 'users', user.uid)),
+        ])
+        setTeamNaam(naam)
+        const opgeslagenDoel = userSnap.data()?.dagdoel ?? 10000
+        setDagdoel(opgeslagenDoel)
+      } catch (e) {
+        console.error('Fout bij init Dashboard:', e)
+      } finally {
+        setInitLaden(false)
       }
-      const opgeslagenDoel = userSnap.data()?.dagdoel ?? 10000
-      setDagdoel(opgeslagenDoel)
-      setDoelInput(String(opgeslagenDoel))
-      setInitLaden(false)
     }
     init()
   }, [user])
- 
+
+  // ── Handlers ─────────────────────────────────────────────────
   async function handleLogout() {
     await logout()
     navigate('/login')
   }
- 
-  async function handleStappenOpslaan(e) {
-    e.preventDefault()
-    const aantal = parseInt(stappenInput, 10)
-    if (!stappenInput || isNaN(aantal) || aantal < 0) {
-      setStappenFout('Vul een geldig aantal stappen in.')
-      return
-    }
-    if (aantal > 100000) {
-      setStappenFout('Dat lijkt ons wat veel. Max 100.000 stappen.')
-      return
-    }
-    setStappenLaden(true)
-    setStappenFout('')
+
+  // ── Live tracking: commit stappen naar Firestore ─────────────
+  const handleStappenCommit = useCallback(async (aantal) => {
+    if (!user?.uid || !aantal || aantal <= 0) return
     try {
+      // 1. Update daily steps in 'stappen' collectie
+      const datum = new Date().toISOString().split('T')[0]
       await slaStappenOp(user.uid, aantal)
-      setStappenVandaag(aantal)
-      setStappenOpgeslagen(true)
-      setRefreshTrigger(t => t + 1)
- 
-      // Badges verwerken na opslaan stappen
-      const vandaag = new Date().toISOString().split('T')[0]
-      const stepsMap = { [vandaag]: aantal }
+      
+      // 2. Update totalSteps in users collectie
+      await voegStappenToeAanTotaal(user.uid, aantal)
+      
+      // 3. Verwerk badges
+      const stepsMap = { [datum]: aantal }
       const nieuweBadges = await verwerkBadges(user.uid, stepsMap)
       if (nieuweBadges.length > 0) {
         localStorage.setItem('nieuw_badge', nieuweBadges[0])
       }
- 
-      setTimeout(() => setStappenOpgeslagen(false), 3000)
-    } catch {
-      setStappenFout('Opslaan mislukt. Probeer het opnieuw.')
-    } finally {
-      setStappenLaden(false)
+      
+      // 4. Refresh stats
+      setRefreshTrigger(t => t + 1)
+    } catch (err) {
+      console.error('Fout bij committen live stappen:', err)
     }
-  }
- 
+  }, [user?.uid])
+
+  // ── Dagdoel bijwerken ────────────────────────────────────────
   async function handleDoelOpslaan(e) {
     e.preventDefault()
-    const aantal = parseInt(doelInput, 10)
-    if (!doelInput || isNaN(aantal) || aantal < 1000) {
-      setDoelFout('Minimaal 1.000 stappen als dagdoel.')
+    const input = document.querySelector('input[aria-label="Nieuw stapdoel"]')
+    const aantal = parseInt(input?.value || dagdoel, 10)
+    
+    if (isNaN(aantal) || aantal < 1000) {
+      alert('Minimaal 1.000 stappen als dagdoel.')
       return
     }
     if (aantal > 100000) {
-      setDoelFout('Maximaal 100.000 stappen als dagdoel.')
+      alert('Maximaal 100.000 stappen als dagdoel.')
       return
     }
-    setDoelLaden(true)
-    setDoelFout('')
+    
     try {
       await updateDoc(doc(db, 'users', user.uid), { dagdoel: aantal })
       setDagdoel(aantal)
-      setDoelOpgeslagen(true)
-      setTimeout(() => setDoelOpgeslagen(false), 3000)
+      // Toast of feedback kan hier
     } catch {
-      setDoelFout('Opslaan mislukt. Probeer opnieuw.')
-    } finally {
-      setDoelLaden(false)
+      alert('Opslaan mislukt. Probeer opnieuw.')
     }
   }
- 
+
+  // ── Berekeningen ─────────────────────────────────────────────
   const dag = dagVanApril()
-  const voortgang = Math.min((stappenVandaag ?? 0) / dagdoel, 1)
   const initials = (user?.naam || user?.email || 'U').slice(0, 2).toUpperCase()
   const maandNaam = new Date().toLocaleString('nl-NL', { month: 'long', year: 'numeric' })
- 
+
+  if (statsLaden || initLaden) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+        <div className="w-5 h-5 border-2 border-[#84cc16]/30 border-t-[#84cc16] rounded-full animate-spin" />
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
- 
-      {/* Navbar — slide-in animatie */}
+
+      {/* Navbar */}
       <header className="animate-slide-down border-b border-white/5 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-[#84cc16] text-xl leading-none">⬡</span>
@@ -161,7 +269,7 @@ export default function Dashboard() {
             </button>
           )}
           <span className="text-white/40 text-sm hidden sm:block">{user?.email}</span>
- 
+
           <button
             onClick={() => navigate('/profiel')}
             className="flex items-center gap-2 bg-[#84cc16]/10 hover:bg-[#84cc16]/20 border border-[#84cc16]/25 hover:border-[#84cc16]/50 text-[#84cc16] text-xs font-bold rounded-xl px-3 py-2 transition-all duration-200"
@@ -179,10 +287,10 @@ export default function Dashboard() {
           </button>
         </div>
       </header>
- 
+
       <main className="max-w-4xl mx-auto px-6 py-12 space-y-8">
- 
-        {/* Welkom — fade-in */}
+
+        {/* Welkom */}
         <div className="animate-fade-in">
           <p className="text-[#84cc16] text-xs tracking-[0.2em] uppercase mb-2">welkom terug</p>
           <h1 className="text-4xl sm:text-5xl font-black tracking-tight leading-tight">
@@ -191,13 +299,13 @@ export default function Dashboard() {
           <p className="text-white/30 text-sm mt-2">
             Rol: <span className="text-white/50 capitalize">{user?.role || 'deelnemer'}</span>
             {user?.teamId
-              ? <> · Team: <span className="text-white/50">{initLaden ? '…' : (teamNaam ?? user.teamId)}</span></>
+              ? <> · Team: <span className="text-white/50">{teamNaam ?? user.teamId}</span></>
               : <> · <span className="text-white/30">Geen team gekoppeld</span></>
             }
           </p>
         </div>
- 
-        {/* Badges — fade-in delay 1 */}
+
+        {/* Badges */}
         <div
           onClick={() => navigate('/badges')}
           className="animate-fade-in-delay-1 bg-white/[0.03] hover:bg-white/[0.05] border border-white/5 hover:border-[#84cc16]/20 rounded-2xl p-5 flex items-center justify-between cursor-pointer transition-all duration-200 group hover:scale-[1.01] active:scale-[0.99]"
@@ -215,10 +323,10 @@ export default function Dashboard() {
             →
           </span>
         </div>
- 
-        {/* Stats — fade-in delay 2 */}
+
+        {/* Stats */}
         <div className="animate-fade-in-delay-2 grid grid-cols-2 sm:grid-cols-4 gap-4">
- 
+
           <div className="bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 hover:border-white/10 hover:scale-[1.02] rounded-2xl p-5 flex flex-col gap-2 transition-all duration-200 cursor-default">
             <div className="flex items-center justify-between">
               <span className="text-white/30 text-xs uppercase tracking-widest">Dag</span>
@@ -227,29 +335,29 @@ export default function Dashboard() {
             <span className="text-white text-3xl font-black leading-none">{dag}</span>
             <span className="text-white/20 text-xs">van 30 dagen</span>
           </div>
- 
+
           <div className="bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 hover:border-white/10 hover:scale-[1.02] rounded-2xl p-5 flex flex-col gap-2 transition-all duration-200 cursor-default">
             <div className="flex items-center justify-between">
               <span className="text-white/30 text-xs uppercase tracking-widest">Totaal</span>
               <span className="text-lg">👟</span>
             </div>
             <span className="text-white text-3xl font-black leading-none">
-              {statsLaden ? '…' : totaalStappen.toLocaleString('nl-NL')}
+              {totaalStappen.toLocaleString('nl-NL')}
             </span>
             <span className="text-white/20 text-xs">stappen deze maand</span>
           </div>
- 
+
           <div className="bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 hover:border-white/10 hover:scale-[1.02] rounded-2xl p-5 flex flex-col gap-2 transition-all duration-200 cursor-default">
             <div className="flex items-center justify-between">
               <span className="text-white/30 text-xs uppercase tracking-widest">Doeldagen</span>
               <span className="text-lg">🎯</span>
             </div>
             <span className="text-white text-3xl font-black leading-none">
-              {statsLaden ? '…' : doelDagen}
+              {doelDagen}
             </span>
-            <span className="text-white/20 text-xs">≥ {dagdoel.toLocaleString('nl-NL')} stappen</span>
+            <span className="text-white/20 text-xs">≥ {fmt(dagdoel)} stappen</span>
           </div>
- 
+
           <div className={`rounded-2xl p-5 flex flex-col gap-2 border transition-all duration-300 cursor-default
             ${streak >= 3
               ? 'bg-[#84cc16]/[0.06] border-[#84cc16]/30 shadow-lg shadow-[#84cc16]/10 hover:shadow-[#84cc16]/20'
@@ -265,145 +373,58 @@ export default function Dashboard() {
               </span>
             </div>
             <span className={`text-3xl font-black leading-none ${streak >= 3 ? 'text-[#84cc16]' : 'text-white'}`}>
-              {statsLaden ? '…' : streak}
+              {streak}
             </span>
             <span className={`text-xs ${streak >= 3 ? 'text-[#84cc16]/40' : 'text-white/20'}`}>
               {streak === 1 ? 'dag op rij' : 'dagen op rij'}
             </span>
           </div>
- 
+
         </div>
 
-        {/* Persoonlijk dagdoel — fade-in delay 3 */}
-        <div className="animate-fade-in-delay-3 bg-gradient-to-br from-white/[0.05] to-transparent border border-white/10 backdrop-blur-sm rounded-2xl p-6 shadow-lg shadow-black/10 space-y-5">
-          <div className="flex items-start justify-between">
-            <div className="space-y-1">
-              <h2 className="text-white font-semibold text-lg tracking-tight">Persoonlijk dagdoel</h2>
-              <p className="text-white/40 text-sm">
-                Huidig doel:{' '}
-                <span className="text-white/70 font-medium">{dagdoel.toLocaleString('nl-NL')} stappen</span>
-              </p>
-            </div>
-            <div className="bg-white/5 border border-white/10 rounded-xl p-2 text-lg">
-              🎯
-            </div>
-          </div>
+        {/* 🎯 Live Stappen Tracking (vervangt handmatige invoer) */}
+        <LiveStappenCard 
+          uid={user?.uid} 
+          dagdoel={dagdoel} 
+          onStappenCommit={handleStappenCommit}
+          onRefresh={() => setRefreshTrigger(t => t + 1)}
+        />
 
-          <form onSubmit={handleDoelOpslaan} noValidate className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <input
-                type="number"
-                min="1000"
-                max="100000"
-                placeholder="bijv. 8000"
-                value={doelInput}
-                onChange={(e) => { setDoelInput(e.target.value); setDoelFout('') }}
-                aria-label="Nieuw stapdoel"
-                className="w-full bg-white/5 border border-white/10 focus:border-[#84cc16]/60 focus:ring-2 focus:ring-[#84cc16]/20 rounded-xl px-4 py-3 text-white text-sm placeholder:text-white/25 outline-none transition-all duration-200"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={doelLaden}
-              className="bg-[#84cc16] hover:bg-[#95d926] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed text-[#0a0a0a] font-semibold text-sm rounded-xl px-6 py-3 transition-all duration-200 shadow-lg shadow-[#84cc16]/20 hover:shadow-[#84cc16]/30 flex items-center justify-center gap-2 min-w-[140px]"
-            >
-              {doelLaden && (
-                <span className="w-4 h-4 border-2 border-black/20 border-t-black/70 rounded-full animate-spin" />
-              )}
-              {doelLaden ? 'Opslaan...' : 'Opslaan'}
-            </button>
-          </form>
-
-          <div className="space-y-3">
-            {doelFout && (
-              <div role="alert" aria-live="polite" className="animate-slide-up bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-red-300 text-sm flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                {doelFout}
-              </div>
-            )}
-            {doelOpgeslagen && (
-              <div role="status" aria-live="polite" className="animate-slide-up bg-[#84cc16]/10 border border-[#84cc16]/20 rounded-xl px-4 py-3 text-[#84cc16] text-sm flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Dagdoel opgeslagen!
-              </div>
-            )}
-          </div>
-        </div>
- 
-        {/* Stappen invoer — fade-in delay 3 */}
+        {/* Persoonlijk dagdoel instellen */}
         <div className="animate-fade-in-delay-3 bg-white/[0.03] border border-white/5 rounded-2xl p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-white font-bold text-lg">Stappen vandaag</h2>
-              <p className="text-white/30 text-sm">
-                {stappenVandaag !== null
-                  ? 'Je hebt vandaag al stappen ingevoerd. Je kunt ze aanpassen.'
-                  : 'Voer je stappen in voor vandaag'}
-              </p>
+              <h2 className="text-white font-bold text-lg">Dagdoel aanpassen</h2>
+              <p className="text-white/30 text-sm">Huidig: {fmt(dagdoel)} stappen/dag</p>
             </div>
-            <span className="text-2xl">👟</span>
+            <span className="text-2xl">🎯</span>
           </div>
- 
-          <form onSubmit={handleStappenOpslaan} noValidate className="flex gap-3">
+          
+          <form onSubmit={handleDoelOpslaan} className="flex gap-3">
             <input
               type="number"
-              min="0"
+              min="1000"
               max="100000"
-              placeholder="bijv. 8450"
-              value={stappenInput}
-              onChange={(e) => { setStappenInput(e.target.value); setStappenFout('') }}
+              placeholder="bijv. 12000"
+              defaultValue={dagdoel}
+              aria-label="Nieuw stapdoel"
               className="flex-1 bg-white/5 border border-white/10 focus:border-[#84cc16]/60 rounded-lg px-4 py-3 text-white text-sm placeholder:text-white/20 outline-none transition-colors"
             />
             <button
               type="submit"
-              disabled={stappenLaden}
-              className="bg-[#84cc16] hover:bg-[#95d926] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed text-[#0a0a0a] font-bold text-sm rounded-lg px-5 py-3 transition-all flex items-center gap-2 whitespace-nowrap"
+              className="bg-[#84cc16] hover:bg-[#95d926] active:scale-[0.98] text-[#0a0a0a] font-bold text-sm rounded-lg px-5 py-3 transition-all whitespace-nowrap"
             >
-              {stappenLaden && (
-                <span className="w-4 h-4 border-2 border-black/20 border-t-black/70 rounded-full animate-spin" />
-              )}
-              {stappenLaden ? 'Opslaan...' : 'Opslaan'}
+              Opslaan
             </button>
           </form>
- 
-          {stappenFout && (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 text-red-400 text-sm">
-              {stappenFout}
-            </div>
-          )}
-          {stappenOpgeslagen && (
-            <div className="animate-slide-up bg-[#84cc16]/10 border border-[#84cc16]/20 rounded-lg px-4 py-3 text-[#84cc16] text-sm">
-              ✓ Stappen opgeslagen!
-            </div>
-          )}
- 
-          {stappenVandaag !== null && (
-            <div className="space-y-1.5 pt-1">
-              <div className="flex justify-between text-xs text-white/30">
-                <span>{stappenVandaag.toLocaleString('nl-NL')} stappen</span>
-                <span>{Math.round(voortgang * 100)}% van {dagdoel.toLocaleString('nl-NL')}</span>
-              </div>
-              <div className="w-full bg-white/5 rounded-full h-1.5">
-                <div
-                  className="bg-[#84cc16] h-1.5 rounded-full transition-all duration-700 shadow-sm shadow-[#84cc16]/50"
-                  style={{ width: `${voortgang * 100}%` }}
-                />
-              </div>
-            </div>
-          )}
         </div>
- 
 
-        {/* Grafiek — fade-in delay 4 */}
+        {/* Grafiek */}
         <div className="animate-fade-in-delay-4">
           <StappenGrafiek uid={user?.uid} refresh={refreshTrigger} />
         </div>
- 
-        {/* Klassement — fade-in delay 4 + zoekbalk */}
+
+        {/* Klassement met zoekbalk */}
         <div className="animate-fade-in-delay-4 space-y-4">
           
           {/* Zoekbalk met toggle */}
@@ -444,9 +465,7 @@ export default function Dashboard() {
                 onChange={(e) => setZoekQuery(e.target.value)}
                 className="w-full bg-white/5 border border-white/10 focus:border-[#84cc16]/60 focus:ring-2 focus:ring-[#84cc16]/20 rounded-xl pl-10 pr-4 py-2.5 text-white text-sm placeholder:text-white/30 outline-none transition-all"
               />
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 text-sm">
-                
-              </span>
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 text-sm">🔍</span>
               {zoekQuery && (
                 <button
                   type="button"
@@ -459,15 +478,11 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Klassement component met search props */}
-          <Klassement 
-            filterType={klassementFilter} 
-            zoekQuery={zoekQuery} 
-          />
+          <Klassement filterType={klassementFilter} zoekQuery={zoekQuery} />
           
         </div>
- 
-        {/* Challenge voortgang — fade-in delay 4 */}
+
+        {/* Challenge voortgang */}
         <div className="animate-fade-in-delay-4 bg-white/[0.03] border border-white/5 rounded-2xl p-6 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-white font-bold">Challenge voortgang</h2>
@@ -485,19 +500,17 @@ export default function Dashboard() {
             Dag {dag} van 30 · {30 - dag} dagen resterend
           </p>
         </div>
- 
-        {/* Team — fade-in delay 4 */}
+
+        {/* Team */}
         <div className="animate-fade-in-delay-4 bg-white/[0.03] border border-white/5 rounded-2xl p-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-2xl">👥</span>
             <div>
               <h2 className="text-white font-bold">Team</h2>
               <p className="text-white/30 text-sm mt-0.5">
-                {initLaden
-                  ? '…'
-                  : user?.teamId
-                    ? `Je zit in ${teamNaam ?? user.teamId}`
-                    : 'Je bent nog niet in een team'}
+                {user?.teamId
+                  ? `Je zit in ${teamNaam ?? user.teamId}`
+                  : 'Je bent nog niet in een team'}
               </p>
             </div>
           </div>
@@ -508,7 +521,7 @@ export default function Dashboard() {
             {user?.teamId ? 'Bekijken' : 'Aansluiten'}
           </button>
         </div>
- 
+
       </main>
     </div>
   )
