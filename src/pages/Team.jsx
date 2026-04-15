@@ -45,78 +45,82 @@ export default function Team() {
   const [teamTotaalAllertijd, setTeamTotaalAllertijd] = useState(0)
   const [teamTotaalLaden, setTeamTotaalLaden] = useState(true)
 
-  // ── Real-time listener voor team updates + leden totals ─────
-  useEffect(() => {
-    if (!user?.teamId) return
+ // ── Real-time listener voor team updates + leden totals ─────
+useEffect(() => {
+  if (!user?.teamId) return
 
-    let unsubTeam
-    let unsubMembers = []
+  let unsubTeam
+  let unsubMembers = []
+  let memberStepsMap = {} // ✅ Houd bij: uid -> steps
 
-    const initTeam = async () => {
-      setDetailLaden(true)
-      try {
-        const details = await laadTeamDetails(user.teamId)
-        setTeamDetails(details)
-        const doel = details?.teamDoel ?? 10000
-        setTeamDoel(doel)
-        setTeamDoelInput(String(doel))
-      } finally {
-        setDetailLaden(false)
-      }
-
-      // Listener voor team-doel updates
-      unsubTeam = onSnapshot(doc(db, 'teams', user.teamId), (snap) => {
-        const data = snap.data()
-        if (data?.teamDoel !== undefined && data.teamDoel !== teamDoel) {
-          setTeamDoel(data.teamDoel)
-          setTeamDoelInput(String(data.teamDoel))
-        }
-        if (data?.huidigeStappen !== undefined && teamDetails?.huidigeStappen !== data.huidigeStappen) {
-          setTeamDetails(prev => prev ? { ...prev, huidigeStappen: data.huidigeStappen } : null)
-        }
-        if (data?.naam && teamDetails?.naam !== data.naam) {
-          setTeamDetails(prev => prev ? { ...prev, naam: data.naam } : null)
-        }
-      })
-
-      // ✅ NIEUW: Luister naar totalSteps van ELK teamlid voor team-totaal
-      if (teamDetails?.leden?.length > 0) {
-        setTeamTotaalLaden(true)
-        const memberIds = teamDetails.leden.map(lid => lid.uid)
+  const initTeam = async () => {
+    setDetailLaden(true)
+    try {
+      const details = await laadTeamDetails(user.teamId)
+      setTeamDetails(details)
+      const doel = details?.teamDoel ?? 10000
+      setTeamDoel(doel)
+      setTeamDoelInput(String(doel))
+      
+      // ✅ Bereken initieel team totaal
+      if (details?.leden?.length > 0) {
+        const snapshots = await Promise.all(
+          details.leden.map(lid => getDoc(doc(db, 'users', lid.uid)))
+        )
         
-        unsubMembers = memberIds.map(uid => 
-          onSnapshot(doc(db, 'users', uid), (snap) => {
+        let totaal = 0
+        snapshots.forEach((snap, index) => {
+          const uid = details.leden[index].uid
+          const steps = snap.data()?.totalSteps
+          const stepsNum = typeof steps === 'number' ? steps : 0
+          memberStepsMap[uid] = stepsNum
+          totaal += stepsNum
+        })
+        
+        setTeamTotaalAllertijd(totaal)
+        setTeamTotaalLaden(false)
+        
+        // ✅ Zet real-time listeners op voor elk lid
+        unsubMembers = details.leden.map(lid => 
+          onSnapshot(doc(db, 'users', lid.uid), (snap) => {
             const data = snap.data()
             const steps = typeof data?.totalSteps === 'number' ? data.totalSteps : 0
             
-            // Bereken nieuwe som van ALLE leden
-            setTeamTotaalAllertijd(prev => {
-              // Haal oude waarde van deze user eruit, voeg nieuwe toe
-              // Dit voorkomt dubbele optelling bij meerdere updates
-              return prev 
-            })
+            // Update map
+            memberStepsMap[lid.uid] = steps
+            
+            // Bereken nieuwe totaal van ALLE leden
+            const nieuwTotaal = Object.values(memberStepsMap).reduce((sum, val) => sum + val, 0)
+            setTeamTotaalAllertijd(nieuwTotaal)
           })
         )
-
-        // Eerste berekening van som
-        const snapshots = await Promise.all(
-          memberIds.map(uid => getDoc(doc(db, 'users', uid)))
-        )
-        const som = snapshots.reduce((acc, snap) => {
-          const steps = snap.data()?.totalSteps
-          return acc + (typeof steps === 'number' ? steps : 0)
-        }, 0)
-        setTeamTotaalAllertijd(som)
-        setTeamTotaalLaden(false)
       }
+    } finally {
+      setDetailLaden(false)
     }
 
-    initTeam()
-    return () => {
-      unsubTeam?.()
-      unsubMembers.forEach(unsub => unsub?.())
-    }
-  }, [user?.teamId])
+    // Listener voor team-doel updates
+    unsubTeam = onSnapshot(doc(db, 'teams', user.teamId), (snap) => {
+      const data = snap.data()
+      if (data?.teamDoel !== undefined && data.teamDoel !== teamDoel) {
+        setTeamDoel(data.teamDoel)
+        setTeamDoelInput(String(data.teamDoel))
+      }
+      if (data?.huidigeStappen !== undefined && teamDetails?.huidigeStappen !== data.huidigeStappen) {
+        setTeamDetails(prev => prev ? { ...prev, huidigeStappen: data.huidigeStappen } : null)
+      }
+      if (data?.naam && teamDetails?.naam !== data.naam) {
+        setTeamDetails(prev => prev ? { ...prev, naam: data.naam } : null)
+      }
+    })
+  }
+
+  initTeam()
+  return () => {
+    unsubTeam?.()
+    unsubMembers.forEach(unsub => unsub?.())
+  }
+}, [user?.teamId])
 
   // ── Helpers ────────────────────────────────────────────────
   function reset(nieuwScherm) {

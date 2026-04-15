@@ -40,7 +40,7 @@ function TeamRij({ team, isEigen }) {
           )}
         </div>
         <p className="text-white/30 text-xs mt-0.5">
-          {team.aantalLeden} {team.aantalLeden === 1 ? 'lid' : 'leden'} · ø {team.gemiddeldPerPersoonPerDag.toLocaleString('nl-NL')} stappen/persoon/dag
+          {team.aantalLeden} {team.aantalLeden === 1 ? 'lid' : 'leden'} {team.gemiddeldPerPersoonPerDag.toLocaleString('nl-NL')} totaal stappen
         </p>
       </div>
       <div className="text-right shrink-0">
@@ -74,7 +74,7 @@ function LoperRij({ loper, isEigen }) {
           )}
         </div>
         <p className="text-white/30 text-xs mt-0.5">
-          ø {loper.gemiddeldPerDag.toLocaleString('nl-NL')} stappen/dag · {loper.aantalDagen} {loper.aantalDagen === 1 ? 'dag' : 'dagen'} actief
+           {loper.gemiddeldPerDag.toLocaleString('nl-NL')} totaal stappen · {loper.aantalDagen} {loper.aantalDagen === 1 ? 'dag' : 'dagen'} actief
         </p>
       </div>
       <div className="text-right shrink-0">
